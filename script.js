@@ -826,6 +826,214 @@ async function getReply(text, image) {
 
 loadPersona();
 
+const MEMORY_KEY = "rinMemory";
+const MEMORY_ON_KEY = "rinMemoryOn";
+const MEMORY_MAX = 40;
+
+let memories = [];
+let memoryOn = true;
+let clearArmed = false;
+
+function loadMemory() {
+    try {
+        let m = JSON.parse(localStorage.getItem(MEMORY_KEY));
+        if (Array.isArray(m)) {
+            memories = m.filter(function (x) { return x && typeof x.text === "string"; });
+        }
+        memoryOn = localStorage.getItem(MEMORY_ON_KEY) !== "0";
+    } catch (e) {}
+}
+
+function saveMemory() {
+    try {
+        localStorage.setItem(MEMORY_KEY, JSON.stringify(memories));
+        localStorage.setItem(MEMORY_ON_KEY, memoryOn ? "1" : "0");
+    } catch (e) {}
+}
+
+function addMemory(text) {
+    text = String(text).trim().slice(0, 120);
+    if (!text) return false;
+    let low = text.toLowerCase();
+    if (memories.some(function (m) { return m.text.toLowerCase() === low; })) return false;
+    memories.push({ id: "m" + Date.now() + Math.floor(Math.random() * 1000), text: text });
+    if (memories.length > MEMORY_MAX) memories = memories.slice(-MEMORY_MAX);
+    saveMemory();
+    return true;
+}
+
+function showToast(msg) {
+    let t = document.getElementById("toast");
+    if (!t) {
+        t = document.createElement("div");
+        t.id = "toast";
+        t.className = "toast";
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(function () {
+        t.classList.remove("show");
+    }, 2500);
+}
+
+function renderMemory() {
+    let toggle = $("memoryToggle");
+    toggle.textContent = memoryOn ? "Ingatan: Aktif ✅" : "Ingatan: Mati ⏸️";
+    toggle.classList.toggle("on", memoryOn);
+
+    let list = $("memoryList");
+    list.innerHTML = "";
+
+    if (memories.length === 0) {
+        let empty = document.createElement("div");
+        empty.className = "memory-empty";
+        empty.textContent = "Belum ada yang diingat. Coba ceritain sesuatu ke Rin-san.";
+        list.appendChild(empty);
+    }
+
+    memories.forEach(function (m) {
+        let item = document.createElement("div");
+        item.className = "memory-item";
+
+        let span = document.createElement("span");
+        span.textContent = m.text;
+
+        let del = document.createElement("button");
+        del.className = "memory-del";
+        del.textContent = "✕";
+        del.onclick = function () {
+            memories = memories.filter(function (x) { return x.id !== m.id; });
+            saveMemory();
+            renderMemory();
+        };
+
+        item.appendChild(span);
+        item.appendChild(del);
+        list.appendChild(item);
+    });
+
+    $("memoryClear").textContent = "Hapus semua";
+    clearArmed = false;
+}
+
+function openMemory() {
+    renderMemory();
+    toggleSidebar(false);
+    $("memoryBox").classList.add("show");
+}
+
+function closeMemory() {
+    $("memoryBox").classList.remove("show");
+}
+
+function toggleMemory() {
+    memoryOn = !memoryOn;
+    saveMemory();
+    renderMemory();
+}
+
+function addManualMemory() {
+    let input = $("memoryInput");
+    if (addMemory(input.value)) input.value = "";
+    renderMemory();
+}
+
+function clearMemory() {
+    if (!clearArmed) {
+        clearArmed = true;
+        $("memoryClear").textContent = "Yakin? Tap lagi";
+        setTimeout(function () {
+            if (clearArmed) {
+                clearArmed = false;
+                $("memoryClear").textContent = "Hapus semua";
+            }
+        }, 3000);
+        return;
+    }
+    memories = [];
+    saveMemory();
+    renderMemory();
+}
+
+async function getReply(text, image) {
+    let entry = { role: "user", content: text };
+    if (image) entry.image = { data: image.base64, mime: image.mime };
+    history.push(entry);
+
+    try {
+        let r = await fetch(WORKER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                messages: history,
+                persona: persona.text,
+                memoryOn: memoryOn,
+                memory: memoryOn ? memories.map(function (m) { return m.text; }) : []
+            })
+        });
+        let data = await r.json();
+
+        if (image) {
+            delete entry.image;
+            entry.content = text + " [kirim foto]";
+        }
+        history.push({ role: "assistant", content: data.reply });
+
+        if (memoryOn && Array.isArray(data.memories)) {
+            let added = data.memories.filter(function (f) { return addMemory(f); });
+            if (added.length) showToast("🧠 Rin mengingat: " + added.join(", "));
+        }
+        return data.reply;
+    } catch (err) {
+        history.pop();
+        return "Hmph! Koneksinya bermasalah. Coba lagi nanti!";
+    }
+}
+
+loadMemory();
+
+function toggleSettings(open) {
+    let panel = $("settings");
+    let ov = $("settingsOverlay");
+    if (!panel || !ov) return;
+    let show = typeof open === "boolean" ? open : !panel.classList.contains("show");
+    if (show) toggleSidebar(false);
+    panel.classList.toggle("show", show);
+    ov.classList.toggle("show", show);
+}
+
+function toggleAcc(which) {
+    let isPersona = which === "persona";
+    let body = $(isPersona ? "accPersona" : "accMemory");
+    let head = $(isPersona ? "accPersonaHead" : "accMemoryHead");
+    let open = !body.classList.contains("open");
+
+    body.classList.toggle("open", open);
+    head.querySelector(".acc-arrow").textContent = open ? "↓" : ">";
+
+    if (open) {
+        if (isPersona) {
+            pickedPreset = persona.preset || "Tsundere";
+            $("personaInput").value = persona.text;
+            renderChips();
+        } else {
+            renderMemory();
+        }
+    }
+}
+
+function closePersona() {}
+
+function commitPersona(next) {
+    persona = next;
+    try {
+        localStorage.setItem(PERSONA_KEY, JSON.stringify(persona));
+    } catch (e) {}
+    showToast("✅ Kepribadian disimpan");
+}
+
 let pendingPersona = null;
 
 function commitPersona(next) {

@@ -1,41 +1,38 @@
 <!DOCTYPE html>
-<lang="id">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rin-san AI</title>
     <link rel="stylesheet" href="Style.css">
-</head> 
+</head>
 
 <body>
 
 <div class="chat-container">
 
     <div class="chat-header">
-    <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-    <img src="rin.jpg" class="header-avatar" alt="Rin-san">
-    <div class="header-info">
-        <h1>Rin-san AI</h1>
-        <p class="subtitle">semoga suka</p>
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        <img src="rin.jpg" class="header-avatar" alt="Rin-san">
+        <div class="header-info">
+            <h1>Rin-san AI</h1>
+            <p class="subtitle">semoga suka</p>
+        </div>
+        <button class="settings-btn" onclick="toggleSettings()">⚙️</button>
     </div>
+
+    <div id="messages"></div>
+
+    <div id="previewBar" class="preview-bar">
+        <img id="previewImg" alt="">
+        <button class="preview-remove" onclick="removeImage()">✕</button>
     </div>
 
-<div id="messages">
-</div>
-
- <div id="previewBar" class="preview-bar">
-   <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-    <img id="previewImg" alt="">
-    
-</div>
-
-<div class="input-area">
-    <button class="attach-btn" onclick="document.getElementById('fileInput').click()">📎</button>
-    <input type="file" id="fileInput" accept="image/*" hidden>
-    <input type="text" id="userInput" placeholder="Ketik pesan...">
-    <button onclick="sendMessage()">Kirim</button>
-</div>
-
+    <div class="input-area">
+        <button class="attach-btn" onclick="document.getElementById('fileInput').click()">📎</button>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+        <input type="text" id="userInput" placeholder="Ketik pesan...">
+        <button onclick="sendMessage()">Kirim</button>
     </div>
 
 </div>
@@ -44,7 +41,6 @@
 <div id="sidebar" class="sidebar">
     <div class="sidebar-title">Riwayat obrolan</div>
     <div id="chatList" class="chat-list"></div>
-         <button class="persona-btn" onclick="openPersona()">🎭 Kepribadian</button>
 
     <div class="theme-title">Tema</div>
     <div class="theme-row">
@@ -63,26 +59,37 @@
     <button class="new-chat-btn" onclick="newChat()">✏️ Obrolan baru</button>
 </div>
 
-  <div id="personaBox" class="confirm-overlay">
-    <div class="confirm-card persona-card">
-        <p>Kepribadian Rin-san</p>
+<div id="settingsOverlay" class="sidebar-overlay" onclick="toggleSettings()"></div>
+<div id="settings" class="settings-panel">
+    <div class="settings-header">
+        <span class="sidebar-title">Pengaturan</span>
+        <button class="settings-close" onclick="toggleSettings()">✕</button>
+    </div>
+
+    <button id="accPersonaHead" class="acc-head" onclick="toggleAcc('persona')">
+        <span>Kepribadian 🎭</span><span class="acc-arrow">&gt;</span>
+    </button>
+    <div id="accPersona" class="acc-body">
         <div id="personaChips" class="persona-chips"></div>
         <textarea id="personaInput" class="persona-input" maxlength="1000" placeholder="Kosong = Tsundere bawaan. Atau tulis sifat Rin-san sendiri..."></textarea>
-        <div class="confirm-actions">
-            <button class="confirm-no" onclick="closePersona()">Batal</button>
-            <button class="confirm-yes" onclick="savePersona()">Simpan</button>
-        </div>
+        <button class="acc-save" onclick="savePersona()">Simpan</button>
     </div>
-  </div>
-  
-  <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
-<div id="sidebar" class="sidebar">
-    <div class="sidebar-title">Riwayat obrolan</div>
-    <div id="chatList" class="chat-list"></div>
-    <button class="new-chat-btn" onclick="newChat()">✏️ Obrolan baru</button>
+
+    <button id="accMemoryHead" class="acc-head" onclick="toggleAcc('memory')">
+        <span>Ingatan Rin 🧠</span><span class="acc-arrow">&gt;</span>
+    </button>
+    <div id="accMemory" class="acc-body">
+        <button id="memoryToggle" class="memory-toggle" onclick="toggleMemory()"></button>
+        <div id="memoryList" class="memory-list"></div>
+        <div class="memory-add">
+            <input type="text" id="memoryInput" maxlength="120" placeholder="Tambah ingatan sendiri...">
+            <button onclick="addManualMemory()">+</button>
+        </div>
+        <button id="memoryClear" class="acc-save confirm-no" onclick="clearMemory()">Hapus semua</button>
+    </div>
 </div>
 
-  <div id="renameBox" class="confirm-overlay">
+<div id="renameBox" class="confirm-overlay">
     <div class="confirm-card">
         <p>Ganti nama obrolan</p>
         <input type="text" id="renameInput" class="rename-input" maxlength="40">
@@ -91,9 +98,9 @@
             <button class="confirm-yes" onclick="saveRename()">Simpan</button>
         </div>
     </div>
-  </div>
+</div>
 
-  <div id="personaConfirm" class="confirm-overlay">
+<div id="personaConfirm" class="confirm-overlay">
     <div class="confirm-card">
         <p>Kepribadian sudah diganti. Hapus chat lama?</p>
         <div class="confirm-stack">
@@ -102,18 +109,18 @@
             <button class="confirm-no" onclick="cancelPersona()">Batal</button>
         </div>
     </div>
-  </div>
-  
-  <div id="confirmBox" class="confirm-overlay">
+</div>
+
+<div id="confirmBox" class="confirm-overlay">
     <div class="confirm-card">
-      <p id="confirmText">Hapus obrolan ini?</p>
+        <p id="confirmText">Hapus obrolan ini?</p>
         <div class="confirm-actions">
             <button class="confirm-no" onclick="closeConfirm()">Batal</button>
             <button class="confirm-yes" onclick="doClear()">Ya, hapus</button>
         </div>
     </div>
-  </div>
-  
+</div>
+
 <script src="script.js"></script>
 
 </body>

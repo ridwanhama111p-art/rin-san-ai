@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rin-san AI</title>
+    <link rel="stylesheet" href="Style.css">
+</head> 
+
+<body>
+
+<div class="chat-container">
+
+    <div class="chat-header">
+    <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+    <img src="rin.jpg" class="header-avatar" alt="Rin-san">
+    <div class="header-info">
+        <h1>Rin-san AI</h1>
+        <p class="subtitle">semoga suka</p>
+    </div>
+    </div>
+
+<div id="messages">
+</div>
+
+ <div id="previewBar" class="preview-bar">
+   <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+    <img id="previewImg" alt="">
+    
+</div>
+
+<div class="input-area">
+    <button class="attach-btn" onclick="document.getElementById('fileInput').click()">📎</button>
+    <input type="file" id="fileInput" accept="image/*" hidden>
+    <input type="text" id="userInput" placeholder="Ketik pesan...">
+    <button onclick="sendMessage()">Kirim</button>
+</div>
+
+    </div>
+
+</div>
+
+<div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+<div id="sidebar" class="sidebar">
+    <div class="sidebar-title">Riwayat obrolan</div>
+    <div id="chatList" class="chat-list"></div>
+
+    <div class="theme-title">Tema</div>
+    <div class="theme-row">
+        <button class="theme-dot" data-name="pink" style="background:#ed91b1" onclick="setTheme('pink')"></button>
+        <button class="theme-dot" data-name="lavender" style="background:#a78bfa" onclick="setTheme('lavender')"></button>
+        <button class="theme-dot" data-name="blue" style="background:#5fa8e8" onclick="setTheme('blue')"></button>
+        <button class="theme-dot" data-name="green" style="background:#62c58a" onclick="setTheme('green')"></button>
+        <button class="theme-dot" data-name="dark" style="background:#1f1a28" onclick="setTheme('dark')"></button>
+        <button class="theme-dot" data-name="orange" style="background:#f5a25d" onclick="setTheme('orange')"></button>
+        <button class="theme-dot" data-name="teal" style="background:#3cb8b0" onclick="setTheme('teal')"></button>
+        <button class="theme-dot" data-name="red" style="background:#e5646e" onclick="setTheme('red')"></button>
+        <button class="theme-dot" data-name="midnight" style="background:#16213a" onclick="setTheme('midnight')"></button>
+        <button class="theme-dot" data-name="mocha" style="background:#261e19" onclick="setTheme('mocha')"></button>
+    </div>
+
+    <button class="new-chat-btn" onclick="newChat()">✏️ Obrolan baru</button>
+</div>
+  
+  <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+<div id="sidebar" class="sidebar">
+    <div class="sidebar-title">Riwayat obrolan</div>
+    <div id="chatList" class="chat-list"></div>
+    <button class="new-chat-btn" onclick="newChat()">✏️ Obrolan baru</button>
+</div>
+
+  <div id="renameBox" class="confirm-overlay">
+    <div class="confirm-card">
+        <p>Ganti nama obrolan</p>
+        <input type="text" id="renameInput" class="rename-input" maxlength="40">
+        <div class="confirm-actions">
+            <button class="confirm-no" onclick="closeRename()">Batal</button>
+            <button class="confirm-yes" onclick="saveRename()">Simpan</button>
+        </div>
+    </div>
+  </div>
+  
+  <div id="confirmBox" class="confirm-overlay">
+    <div class="confirm-card">
+      <p id="confirmText">Hapus obrolan ini?</p>
+        <div class="confirm-actions">
+            <button class="confirm-no" onclick="closeConfirm()">Batal</button>
+            <button class="confirm-yes" onclick="doClear()">Ya, hapus</button>
+        </div>
+    </div>
+  </div>
+  
+<script src="script.js"></script>
+
+</body>
+</html>

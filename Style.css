@@ -632,3 +632,51 @@ button:active {
 .theme-row {
     flex-wrap: wrap;
 }
+
+.persona-btn {
+    margin-top: 12px;
+    background: var(--soft);
+    color: var(--soft-text);
+}
+
+.persona-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.persona-chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--soft);
+    color: var(--soft-text);
+    font-size: 13px;
+}
+
+.persona-chip.active {
+    background: var(--primary);
+    color: white;
+}
+
+.persona-input {
+    width: 100%;
+    min-height: 120px;
+    padding: 10px;
+    margin-bottom: 16px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
+    resize: vertical;
+    outline: none;
+}
+
+.confirm-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}

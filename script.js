@@ -739,3 +739,137 @@ async function sendMessage() {
         sending = false;
     }
 }
+
+const PERSONA_KEY = "rinPersona";
+
+const PRESETS = [
+    { name: "Tsundere", text: "" },
+    { name: "Kalem", text: "Kamu adalah Rin-san, gadis yang tenang, lembut, dan sabar. Bicara pelan dan hangat, suka menenangkan lawan bicara, jarang marah. Boleh pakai aksi lembut seperti *tersenyum tipis*." },
+    { name: "Ceria", text: "Kamu adalah Rin-san, gadis super ceria dan penuh semangat. Suka bercanda, antusias, dan memberi semangat. Bahasa santai, emoji paling banyak dua per balasan. Boleh pakai aksi seperti *melompat kecil*." },
+    { name: "Dingin", text: "Kamu adalah Rin-san, gadis yang dingin, cuek, dan irit bicara. Jawaban singkat dan datar, sesekali sarkastis ringan tapi tidak menyakiti. Di balik sikap dinginnya sebenarnya peduli, tapi jarang ditunjukkan. Boleh pakai aksi seperti *melirik sekilas*." },
+    { name: "Pemalu", text: "Kamu adalah Rin-san, gadis pemalu dan gugup. Sering terbata-bata (\"a-anu...\"), mudah tersipu, tapi tulus dan baik hati. Boleh pakai aksi seperti *menunduk malu*." },
+    { name: "Kustom", text: null }
+];
+
+let persona = { preset: "Tsundere", text: "" };
+let pickedPreset = "Tsundere";
+
+function loadPersona() {
+    try {
+        let s = JSON.parse(localStorage.getItem(PERSONA_KEY));
+        if (s && typeof s.text === "string") persona = s;
+    } catch (e) {}
+}
+
+function renderChips() {
+    let box = $("personaChips");
+    box.innerHTML = "";
+    PRESETS.forEach(function (p) {
+        let b = document.createElement("button");
+        b.className = "persona-chip" + (p.name === pickedPreset ? " active" : "");
+        b.textContent = p.name;
+        b.onclick = function () {
+            pickedPreset = p.name;
+            if (p.text !== null) $("personaInput").value = p.text;
+            renderChips();
+        };
+        box.appendChild(b);
+    });
+}
+
+function openPersona() {
+    pickedPreset = persona.preset || "Tsundere";
+    $("personaInput").value = persona.text;
+    renderChips();
+    toggleSidebar(false);
+    $("personaBox").classList.add("show");
+}
+
+function closePersona() {
+    $("personaBox").classList.remove("show");
+}
+
+function savePersona() {
+    let text = $("personaInput").value.trim();
+    let match = PRESETS.find(function (p) { return p.text !== null && p.text === text; });
+    persona = { preset: match ? match.name : "Kustom", text: text };
+    try {
+        localStorage.setItem(PERSONA_KEY, JSON.stringify(persona));
+    } catch (e) {}
+    closePersona();
+}
+
+async function getReply(text, image) {
+    let entry = { role: "user", content: text };
+    if (image) entry.image = { data: image.base64, mime: image.mime };
+    history.push(entry);
+
+    try {
+        let r = await fetch(WORKER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: history, persona: persona.text })
+        });
+        let data = await r.json();
+
+        if (image) {
+            delete entry.image;
+            entry.content = text + " [kirim foto]";
+        }
+        history.push({ role: "assistant", content: data.reply });
+        return data.reply;
+    } catch (err) {
+        history.pop();
+        return "Hmph! Koneksinya bermasalah. Coba lagi nanti!";
+    }
+}
+
+loadPersona();
+
+let pendingPersona = null;
+
+function commitPersona(next) {
+    persona = next;
+    try {
+        localStorage.setItem(PERSONA_KEY, JSON.stringify(persona));
+    } catch (e) {}
+}
+
+function resetActiveChat() {
+    let chat = getActive();
+    if (!chat) return;
+    chat.messages = [];
+    chat.title = "Obrolan baru";
+    chat.updated = Date.now();
+    saveStore();
+    renderChat();
+    renderList();
+}
+
+function savePersona() {
+    let text = $("personaInput").value.trim();
+    let match = PRESETS.find(function (p) { return p.text !== null && p.text === text; });
+    let next = { preset: match ? match.name : "Kustom", text: text };
+
+    closePersona();
+
+    let chat = getActive();
+    if (next.text !== persona.text && chat && chat.messages.length > 0) {
+        pendingPersona = next;
+        $("personaConfirm").classList.add("show");
+    } else {
+        commitPersona(next);
+    }
+}
+
+function applyPersona(clearOld) {
+    if (pendingPersona) commitPersona(pendingPersona);
+    pendingPersona = null;
+    $("personaConfirm").classList.remove("show");
+    if (clearOld && !sending) resetActiveChat();
+}
+
+function cancelPersona() {
+    pendingPersona = null;
+    $("personaConfirm").classList.remove("show");
+}

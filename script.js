@@ -1784,3 +1784,214 @@ renderChat();
         }
     });
 })();
+
+const FACES = {
+    kesal:   { r: 0, c: 0, label: "Kesal 😤" },
+    santai:  { r: 0, c: 1, label: "Santai 😌" },
+    senang:  { r: 0, c: 2, label: "Senang 😊" },
+    dingin:  { r: 0, c: 3, label: "Dingin 😐" },
+    malu:    { r: 1, c: 0, label: "Malu 😳" },
+    ngambek: { r: 1, c: 1, label: "Ngambek 😠" },
+    ngantuk: { r: 1, c: 2, label: "Ngantuk 😴" },
+    salting: { r: 1, c: 3, label: "Salting 🙈" },
+    bingung: { r: 2, c: 0, label: "Bingung ❓" },
+    panik:   { r: 2, c: 1, label: "Panik 😵" },
+    serius:  { r: 2, c: 2, label: "Serius 🤓" },
+    jahil:   { r: 2, c: 3, label: "Jahil 😜" }
+};
+
+// geser ini kalau wajah kepotong: angka kecil = tampil lebih ke atas
+const ROW_Y = [3.3, 47.8, 92.2];
+
+function setFace(el, mood) {
+    let f = FACES[mood] || FACES.santai;
+    el.style.backgroundPosition = (f.c / 3 * 100) + "% " + ROW_Y[f.r] + "%, center";
+}
+
+function initHeaderFace() {
+    let img = document.querySelector("img.header-avatar");
+    if (img) {
+        let d = document.createElement("div");
+        d.id = "headerAvatar";
+        d.className = "header-avatar sprite";
+        img.replaceWith(d);
+    }
+}
+
+function updateHeaderMood(animate) {
+    let chat = getActive();
+    let mood = (chat && chat.mood) || "santai";
+
+    let av = document.getElementById("headerAvatar");
+    if (av) {
+        setFace(av, mood);
+        if (animate) {
+            av.classList.remove("pop");
+            void av.offsetWidth;
+            av.classList.add("pop");
+        }
+    }
+
+    let sub = document.querySelector(".subtitle");
+    if (sub) {
+        sub.textContent = (chat && chat.mood) ? "Suasana hati: " + FACES[mood].label : "semoga suka";
+    }
+}
+
+let _baseAddMessage = addMessage;
+addMessage = function (name, text, type, savedTime, imgSrc, animate, msgId, mood) {
+    let row = _baseAddMessage(name, text, type, savedTime, imgSrc, animate, msgId);
+    if (type === "rin") {
+        let old = row.querySelector("img.avatar");
+        if (old) {
+            let chat = getActive();
+            let face = document.createElement("div");
+            face.className = "avatar sprite";
+            setFace(face, mood || (chat && chat.mood) || "santai");
+            old.replaceWith(face);
+        }
+    }
+    return row;
+};
+
+function renderChat() {
+    $("messages").innerHTML = "";
+    history = [];
+    let chat = getActive();
+    let changed = false;
+
+    chat.messages.forEach(function (m) {
+        if (!m.id) {
+            m.id = newId();
+            changed = true;
+        }
+        let face = m.mood || "santai";
+        if (m.img) {
+            addMessage(m.name, m.caption || "", m.type, m.time, m.img, false, m.id, face);
+        } else {
+            addMessage(m.name, m.text, m.type, m.time, null, false, m.id, face);
+        }
+        history.push({
+            role: m.type === "user" ? "user" : "assistant",
+            content: m.text
+        });
+    });
+
+    if (changed) saveStore();
+    updateHeaderMood();
+}
+
+async function getReply(text, image) {
+    let entry = { role: "user", content: text };
+    if (image) entry.image = { data: image.base64, mime: image.mime };
+    history.push(entry);
+
+    let chat = getActive();
+    let p = (chat && chat.persona) ? chat.persona : persona;
+
+    try {
+        let r = await fetch(WORKER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                messages: history,
+                persona: p.text,
+                memoryOn: memoryOn,
+                memory: memoryOn ? memories.map(function (m) { return m.text; }) : [],
+                mood: (chat && chat.mood) || "santai"
+            })
+        });
+        let data = await r.json();
+
+        if (image) {
+            delete entry.image;
+            entry.content = text + " [kirim foto]";
+        }
+        history.push({ role: "assistant", content: data.reply });
+
+        if (data.mood && FACES[data.mood] && chat) chat.mood = data.mood;
+
+        if (memoryOn && Array.isArray(data.memories)) {
+            let added = data.memories.filter(function (f) { return addMemory(f); });
+            if (added.length) showToast("🧠 Rin mengingat: " + added.join(", "));
+        }
+        return data.reply;
+    } catch (err) {
+        history.pop();
+        return "Hmph! Koneksinya bermasalah. Coba lagi nanti!";
+    }
+}
+
+async function sendMessage() {
+    if (sending) return;
+
+    let input = $("userInput");
+    let text = input.value.trim();
+    let image = pendingImage;
+
+    if (text === "" && !image) return;
+
+    sending = true;
+
+    try {
+        let chat = getActive();
+
+        let userId = newId();
+        let userRow = addMessage("Kamu", text, "user", null, image ? image.dataUrl : null, false, userId);
+        chat.messages.push({
+            id: userId,
+            name: "Kamu",
+            text: image ? "📷 " + (text || "Foto") : text,
+            caption: text,
+            img: image ? image.thumb : undefined,
+            type: "user",
+            time: userRow.querySelector(".message-time").textContent
+        });
+        if (chat.title === "Obrolan baru") chat.title = titleFrom(chat.messages);
+        chat.updated = Date.now();
+        saveStore();
+        renderList();
+
+        input.value = "";
+        removeImage();
+
+        let typing = addMessage("Rin-san", "", "rin");
+        typing.classList.add("typing-row");
+
+        let typingBubble = typing.querySelector(".message-bubble");
+        for (let i = 0; i < 3; i++) {
+            let dot = document.createElement("span");
+            dot.className = "typing-dot";
+            typingBubble.appendChild(dot);
+        }
+
+        let reply = await getReply(text || "Aku kirim foto ini.", image);
+        let ok = history[history.length - 1].content === reply;
+
+        typing.remove();
+
+        let rinId = ok ? newId() : null;
+        let rinRow = addMessage("Rin-san", reply, "rin", null, null, true, rinId, chat.mood);
+
+        if (ok) {
+            chat.messages.push({
+                id: rinId,
+                name: "Rin-san",
+                text: reply,
+                mood: chat.mood,
+                type: "rin",
+                time: rinRow.querySelector(".message-time").textContent
+            });
+        }
+        chat.messages = chat.messages.slice(-50);
+        chat.updated = Date.now();
+        saveStore();
+        renderList();
+        updateHeaderMood(true);
+    } finally {
+        sending = false;
+    }
+}
+
+initHeaderFace();
+renderChat();

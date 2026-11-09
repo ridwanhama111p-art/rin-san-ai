@@ -856,3 +856,33 @@ button:active {
 .acc-body.open > *:nth-child(3) { animation-delay: 0.14s; }
 .acc-body.open > *:nth-child(4) { animation-delay: 0.21s; }
 .acc-body.open > *:nth-child(5) { animation-delay: 0.28s; }
+
+.message-footer {
+    flex-wrap: wrap;
+}
+
+.user .message-footer {
+    justify-content: flex-end;
+}
+
+.msg-act {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.message-bubble {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.confirm-card .menu-preview {
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.message-footer .copy-btn {
+    display: none;
+}

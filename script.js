@@ -172,16 +172,6 @@ function addMessage(name, text, type, savedTime, imgSrc, animate) {
     footer.className = "message-footer";
     footer.appendChild(time);
 
-    if (type === "rin" && text) {
-        let copyBtn = document.createElement("button");
-        copyBtn.className = "copy-btn";
-        copyBtn.textContent = "📋 Salin";
-        copyBtn.onclick = function () {
-            copyText(text, copyBtn);
-        };
-        footer.appendChild(copyBtn);
-    }
-
     body.appendChild(sender);
     body.appendChild(bubble);
     body.appendChild(footer);
@@ -1252,3 +1242,510 @@ async function getReply(text, image) {
         return "Hmph! Koneksinya bermasalah. Coba lagi nanti!";
     }
 }
+
+function newId() {
+    return "g" + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36);
+}
+
+function addMessage(name, text, type, savedTime, imgSrc, animate, msgId) {
+    let messages = $("messages");
+
+    let row = document.createElement("div");
+    row.className = "message " + type;
+    if (msgId) row.dataset.id = msgId;
+
+    if (type === "rin") {
+        let avatar = document.createElement("img");
+        avatar.src = "rin.jpg";
+        avatar.className = "avatar";
+        avatar.alt = "Rin-san";
+        row.appendChild(avatar);
+    }
+
+    let body = document.createElement("div");
+    body.className = "message-body";
+
+    let sender = document.createElement("span");
+    sender.className = "message-name";
+    sender.textContent = name;
+
+    let bubble = document.createElement("div");
+    bubble.className = "message-bubble";
+
+    if (imgSrc) {
+        let pic = document.createElement("img");
+        pic.src = imgSrc;
+        pic.className = "message-img";
+        bubble.appendChild(pic);
+    }
+
+    if (text || !imgSrc) {
+        let content = document.createElement("span");
+        content.className = "message-content";
+        renderRichText(content, text);
+        if (animate) animateWords(content);
+        bubble.appendChild(content);
+    }
+
+    let time = document.createElement("span");
+    time.className = "message-time";
+    time.textContent = savedTime || new Date().toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+    });
+
+    let footer = document.createElement("div");
+    footer.className = "message-footer";
+    footer.appendChild(time);
+
+    if (type === "rin" && text) {
+        let copyBtn = document.createElement("button");
+        copyBtn.className = "copy-btn msg-act";
+        copyBtn.textContent = "📋 Salin";
+        copyBtn.onclick = function () {
+            copyText(text, copyBtn);
+        };
+        footer.appendChild(copyBtn);
+    }
+
+    if (msgId) {
+        let editBtn = document.createElement("button");
+        editBtn.className = "copy-btn msg-act";
+        editBtn.textContent = "✏️";
+        editBtn.onclick = function () {
+            openEdit(msgId);
+        };
+        footer.appendChild(editBtn);
+    }
+
+    let delBtn = document.createElement("button");
+    delBtn.className = "copy-btn msg-act";
+    delBtn.textContent = "🗑️";
+    let armed = false;
+    delBtn.onclick = function () {
+        if (!armed) {
+            armed = true;
+            delBtn.textContent = "Hapus?";
+            setTimeout(function () {
+                armed = false;
+                delBtn.textContent = "🗑️";
+            }, 3000);
+            return;
+        }
+        if (msgId) deleteMessage(msgId);
+        else row.remove();
+    };
+    footer.appendChild(delBtn);
+
+    body.appendChild(sender);
+    body.appendChild(bubble);
+    body.appendChild(footer);
+    row.appendChild(body);
+
+    messages.appendChild(row);
+    messages.scrollTop = messages.scrollHeight;
+
+    return row;
+}
+
+function renderChat() {
+    $("messages").innerHTML = "";
+    history = [];
+    let chat = getActive();
+    let changed = false;
+
+    chat.messages.forEach(function (m) {
+        if (!m.id) {
+            m.id = newId();
+            changed = true;
+        }
+        if (m.img) {
+            addMessage(m.name, m.caption || "", m.type, m.time, m.img, false, m.id);
+        } else {
+            addMessage(m.name, m.text, m.type, m.time, null, false, m.id);
+        }
+        history.push({
+            role: m.type === "user" ? "user" : "assistant",
+            content: m.text
+        });
+    });
+
+    if (changed) saveStore();
+}
+
+function rerender() {
+    let box = $("messages");
+    let top = box.scrollTop;
+    renderChat();
+    box.scrollTop = top;
+}
+
+function findMsg(id) {
+    let chat = getActive();
+    if (!chat) return null;
+    return chat.messages.find(function (m) { return m.id === id; }) || null;
+}
+
+let editingId = null;
+
+function openEdit(id) {
+    if (sending) {
+        showToast("Tunggu Rin-san selesai bales dulu ya");
+        return;
+    }
+    let m = findMsg(id);
+    if (!m) return;
+    editingId = id;
+    let input = $("editInput");
+    input.value = m.img ? (m.caption || "") : m.text;
+    $("editBox").classList.add("show");
+    input.focus();
+}
+
+function closeEdit() {
+    $("editBox").classList.remove("show");
+    editingId = null;
+}
+
+function saveEdit() {
+    let m = findMsg(editingId);
+    let val = $("editInput").value.trim();
+    if (!m) {
+        closeEdit();
+        return;
+    }
+    if (m.img) {
+        m.caption = val;
+        m.text = "📷 " + (val || "Foto");
+    } else {
+        if (!val) {
+            showToast("Pesan nggak boleh kosong");
+            return;
+        }
+        m.text = val;
+    }
+    let chat = getActive();
+    chat.updated = Date.now();
+    saveStore();
+    closeEdit();
+    rerender();
+    renderList();
+    showToast("✏️ Pesan diubah");
+}
+
+function deleteMessage(id) {
+    if (sending) {
+        showToast("Tunggu Rin-san selesai bales dulu ya");
+        return;
+    }
+    let chat = getActive();
+    if (!chat) return;
+    chat.messages = chat.messages.filter(function (m) { return m.id !== id; });
+    if (chat.messages.length === 0) chat.title = "Obrolan baru";
+    saveStore();
+    rerender();
+    renderList();
+}
+
+async function sendMessage() {
+    if (sending) return;
+
+    let input = $("userInput");
+    let text = input.value.trim();
+    let image = pendingImage;
+
+    if (text === "" && !image) return;
+
+    sending = true;
+
+    try {
+        let chat = getActive();
+
+        let userId = newId();
+        let userRow = addMessage("Kamu", text, "user", null, image ? image.dataUrl : null, false, userId);
+        chat.messages.push({
+            id: userId,
+            name: "Kamu",
+            text: image ? "📷 " + (text || "Foto") : text,
+            caption: text,
+            img: image ? image.thumb : undefined,
+            type: "user",
+            time: userRow.querySelector(".message-time").textContent
+        });
+        if (chat.title === "Obrolan baru") chat.title = titleFrom(chat.messages);
+        chat.updated = Date.now();
+        saveStore();
+        renderList();
+
+        input.value = "";
+        removeImage();
+
+        let typing = addMessage("Rin-san", "", "rin");
+        typing.classList.add("typing-row");
+
+        let typingBubble = typing.querySelector(".message-bubble");
+        for (let i = 0; i < 3; i++) {
+            let dot = document.createElement("span");
+            dot.className = "typing-dot";
+            typingBubble.appendChild(dot);
+        }
+
+        let reply = await getReply(text || "Aku kirim foto ini.", image);
+        let ok = history[history.length - 1].content === reply;
+
+        typing.remove();
+
+        let rinId = ok ? newId() : null;
+        let rinRow = addMessage("Rin-san", reply, "rin", null, null, true, rinId);
+
+        if (ok) {
+            chat.messages.push({
+                id: rinId,
+                name: "Rin-san",
+                text: reply,
+                type: "rin",
+                time: rinRow.querySelector(".message-time").textContent
+            });
+        }
+        chat.messages = chat.messages.slice(-50);
+        chat.updated = Date.now();
+        saveStore();
+        renderList();
+    } finally {
+        sending = false;
+    }
+}
+
+function openEdit(id) {
+    if (sending) {
+        showToast("Tunggu Rin-san selesai bales dulu ya");
+        return;
+    }
+    let m = findMsg(id);
+    if (!m) return;
+    editingId = id;
+    let input = $("editInput");
+    input.value = m.img ? (m.caption || "") : m.text;
+    $("editResend").style.display = (m.type === "user" && !m.img) ? "" : "none";
+    $("editBox").classList.add("show");
+    input.focus();
+}
+
+function saveEdit(resend) {
+    let m = findMsg(editingId);
+    let val = $("editInput").value.trim();
+    if (!m) {
+        closeEdit();
+        return;
+    }
+
+    let chat = getActive();
+    let wasAuto = chat.title === titleFrom(chat.messages);
+
+    if (m.img) {
+        m.caption = val;
+        m.text = "📷 " + (val || "Foto");
+    } else {
+        if (!val) {
+            showToast("Pesan nggak boleh kosong");
+            return;
+        }
+        m.text = val;
+    }
+    chat.updated = Date.now();
+
+    let id = m.id;
+    let canResend = m.type === "user" && !m.img;
+    closeEdit();
+
+    if (resend === true && canResend) {
+        regenerateFrom(id, wasAuto);
+        return;
+    }
+
+    saveStore();
+    rerender();
+    renderList();
+    showToast("✏️ Pesan diubah");
+}
+
+function regenerateFrom(id, wasAuto) {
+    let chat = getActive();
+    let idx = chat.messages.findIndex(function (m) { return m.id === id; });
+    if (idx < 0) return;
+
+    let text = chat.messages[idx].text;
+    chat.messages = chat.messages.slice(0, idx);
+    if (idx === 0 && wasAuto) chat.title = "Obrolan baru";
+    saveStore();
+    renderChat();
+    renderList();
+
+    removeImage();
+    $("userInput").value = text;
+    sendMessage();
+}
+
+function attachLongPress(el, handler) {
+    let timer = null;
+    let sx = 0;
+    let sy = 0;
+
+    function cancel() {
+        clearTimeout(timer);
+        timer = null;
+    }
+
+    el.addEventListener("pointerdown", function (e) {
+        sx = e.clientX;
+        sy = e.clientY;
+        cancel();
+        timer = setTimeout(function () {
+            timer = null;
+            handler();
+        }, 500);
+    });
+
+    el.addEventListener("pointermove", function (e) {
+        if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel();
+    });
+
+    ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) {
+        el.addEventListener(ev, cancel);
+    });
+
+    el.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+    });
+}
+
+let menuMsg = null;
+let menuArmed = false;
+
+function openMsgMenu(id, row, text) {
+    menuMsg = { id: id, row: row, text: text };
+    menuArmed = false;
+
+    let preview = text || "📷 Foto";
+    $("menuPreview").textContent = preview.length > 60 ? preview.slice(0, 60) + "…" : preview;
+    $("menuCopy").style.display = text ? "" : "none";
+    $("menuCopy").textContent = "📋 Salin";
+    $("menuEdit").style.display = id ? "" : "none";
+    $("menuDelete").textContent = "🗑️ Hapus";
+    $("msgMenu").classList.add("show");
+
+    if (navigator.vibrate) navigator.vibrate(20);
+}
+
+function closeMenu() {
+    $("msgMenu").classList.remove("show");
+    menuMsg = null;
+    menuArmed = false;
+}
+
+function menuCopy() {
+    if (!menuMsg) return;
+    copyText(menuMsg.text, $("menuCopy"));
+    setTimeout(closeMenu, 600);
+}
+
+function menuEdit() {
+    let id = menuMsg && menuMsg.id;
+    closeMenu();
+    if (id) openEdit(id);
+}
+
+function menuDelete() {
+    if (!menuMsg) return;
+    if (!menuArmed) {
+        menuArmed = true;
+        $("menuDelete").textContent = "Yakin hapus? Tap lagi";
+        return;
+    }
+    let m = menuMsg;
+    closeMenu();
+    if (m.id) deleteMessage(m.id);
+    else m.row.remove();
+}
+
+function addMessage(name, text, type, savedTime, imgSrc, animate, msgId) {
+    let messages = $("messages");
+
+    let row = document.createElement("div");
+    row.className = "message " + type;
+    if (msgId) row.dataset.id = msgId;
+
+    if (type === "rin") {
+        let avatar = document.createElement("img");
+        avatar.src = "rin.jpg";
+        avatar.className = "avatar";
+        avatar.alt = "Rin-san";
+        row.appendChild(avatar);
+    }
+
+    let body = document.createElement("div");
+    body.className = "message-body";
+
+    let sender = document.createElement("span");
+    sender.className = "message-name";
+    sender.textContent = name;
+
+    let bubble = document.createElement("div");
+    bubble.className = "message-bubble";
+
+    if (imgSrc) {
+        let pic = document.createElement("img");
+        pic.src = imgSrc;
+        pic.className = "message-img";
+        bubble.appendChild(pic);
+    }
+
+    if (text || !imgSrc) {
+        let content = document.createElement("span");
+        content.className = "message-content";
+        renderRichText(content, text);
+        if (animate) animateWords(content);
+        bubble.appendChild(content);
+    }
+
+    if (msgId || text) {
+        attachLongPress(bubble, function () {
+            openMsgMenu(msgId || null, row, text);
+        });
+    }
+
+    let time = document.createElement("span");
+    time.className = "message-time";
+    time.textContent = savedTime || new Date().toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+    });
+
+    let footer = document.createElement("div");
+    footer.className = "message-footer";
+    footer.appendChild(time);
+
+    if (type === "rin" && text) {
+        let copyBtn = document.createElement("button");
+        copyBtn.className = "copy-btn msg-act";
+        copyBtn.textContent = "📋 Salin";
+        copyBtn.onclick = function () {
+            copyText(text, copyBtn);
+        };
+        footer.appendChild(copyBtn);
+    }
+
+    body.appendChild(sender);
+    body.appendChild(bubble);
+    body.appendChild(footer);
+    row.appendChild(body);
+
+    messages.appendChild(row);
+    messages.scrollTop = messages.scrollHeight;
+
+    return row;
+}
+
+renderChat();

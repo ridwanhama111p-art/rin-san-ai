@@ -111,6 +111,18 @@
     </div>
 </div>
 
+<div id="msgMenu" class="confirm-overlay" onclick="if (event.target === this) closeMenu()">
+    <div class="confirm-card">
+        <p id="menuPreview" class="menu-preview"></p>
+        <div class="confirm-stack">
+            <button id="menuCopy" class="confirm-no" onclick="menuCopy()">📋 Salin</button>
+            <button id="menuEdit" class="confirm-no" onclick="menuEdit()">✏️ Edit</button>
+            <button id="menuDelete" class="confirm-no" onclick="menuDelete()">🗑️ Hapus</button>
+            <button class="confirm-no" onclick="closeMenu()">Batal</button>
+        </div>
+    </div>
+</div>
+  
 <div id="confirmBox" class="confirm-overlay">
     <div class="confirm-card">
         <p id="confirmText">Hapus obrolan ini?</p>

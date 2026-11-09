@@ -836,3 +836,23 @@ button:active {
     width: 100%;
     margin-top: 4px;
 }
+
+@keyframes accDown {
+    from {
+        opacity: 0;
+        transform: translateY(-14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.acc-body.open > * {
+    animation: accDown 0.35s ease-out both;
+}
+
+.acc-body.open > *:nth-child(2) { animation-delay: 0.07s; }
+.acc-body.open > *:nth-child(3) { animation-delay: 0.14s; }
+.acc-body.open > *:nth-child(4) { animation-delay: 0.21s; }
+.acc-body.open > *:nth-child(5) { animation-delay: 0.28s; }

@@ -1081,3 +1081,174 @@ function cancelPersona() {
     pendingPersona = null;
     $("personaConfirm").classList.remove("show");
 }
+
+function savePersona() {
+    let text = $("personaInput").value.trim();
+    let match = PRESETS.find(function (p) { return p.text !== null && p.text === text; });
+    let next = { preset: match ? match.name : "Kustom", text: text };
+
+    toggleSettings(false);
+
+    let chat = getActive();
+    if (next.text !== persona.text && chat && chat.messages.length > 0) {
+        pendingPersona = next;
+        $("personaConfirm").classList.add("show");
+    } else {
+        commitPersona(next);
+    }
+}
+
+function clearMemory() {
+    if (!clearArmed) {
+        clearArmed = true;
+        $("memoryClear").textContent = "Yakin? Tap lagi";
+        setTimeout(function () {
+            if (clearArmed) {
+                clearArmed = false;
+                $("memoryClear").textContent = "Hapus semua";
+            }
+        }, 3000);
+        return;
+    }
+    memories = [];
+    saveMemory();
+    renderMemory();
+    toggleSettings(false);
+    showToast("🧠 Semua ingatan dihapus");
+}
+
+function commitPersona(next) {
+    let old = { preset: persona.preset, text: persona.text };
+    store.chats.forEach(function (c) {
+        if (c.messages.length > 0 && !c.persona) c.persona = old;
+    });
+    persona = next;
+    try {
+        localStorage.setItem(PERSONA_KEY, JSON.stringify(persona));
+    } catch (e) {}
+    saveStore();
+    showToast("✅ Kepribadian disimpan");
+}
+
+function resetActiveChat() {
+    let chat = getActive();
+    if (!chat) return;
+    chat.messages = [];
+    chat.title = "Obrolan baru";
+    chat.updated = Date.now();
+    delete chat.persona;
+    saveStore();
+    renderChat();
+    renderList();
+}
+
+function toggleAcc(which) {
+    let isPersona = which === "persona";
+    let body = $(isPersona ? "accPersona" : "accMemory");
+    let head = $(isPersona ? "accPersonaHead" : "accMemoryHead");
+    let open = !body.classList.contains("open");
+
+    body.classList.toggle("open", open);
+    head.querySelector(".acc-arrow").textContent = open ? "↓" : ">";
+
+    if (open) {
+        if (isPersona) {
+            let chat = getActive();
+            let eff = (chat && chat.persona) ? chat.persona : persona;
+            pickedPreset = eff.preset || "Tsundere";
+            $("personaInput").value = eff.text;
+            renderChips();
+        } else {
+            renderMemory();
+        }
+    }
+}
+
+function savePersona() {
+    let text = $("personaInput").value.trim();
+    let match = PRESETS.find(function (p) { return p.text !== null && p.text === text; });
+    let next = { preset: match ? match.name : "Kustom", text: text };
+
+    toggleSettings(false);
+
+    let chat = getActive();
+    let eff = (chat && chat.persona) ? chat.persona : persona;
+
+    if (next.text === eff.text) return;
+
+    if (chat && chat.messages.length > 0) {
+        pendingPersona = next;
+        $("personaConfirm").classList.add("show");
+    } else {
+        commitPersona(next);
+        if (chat) {
+            delete chat.persona;
+            saveStore();
+        }
+    }
+}
+
+function applyPersona(clearOld) {
+    if (sending) {
+        showToast("Tunggu Rin-san selesai bales dulu ya");
+        return;
+    }
+
+    let next = pendingPersona;
+    pendingPersona = null;
+    $("personaConfirm").classList.remove("show");
+    if (!next) return;
+
+    commitPersona(next);
+
+    if (clearOld) {
+        resetActiveChat();
+        showToast("🗑️ Chat lama dihapus, kepribadian baru dipakai");
+    } else {
+        let c = makeChat();
+        store.chats.push(c);
+        store.activeId = c.id;
+        saveStore();
+        renderChat();
+        renderList();
+        showToast("✨ Obrolan baru dengan kepribadian baru");
+    }
+}
+
+async function getReply(text, image) {
+    let entry = { role: "user", content: text };
+    if (image) entry.image = { data: image.base64, mime: image.mime };
+    history.push(entry);
+
+    let chat = getActive();
+    let p = (chat && chat.persona) ? chat.persona : persona;
+
+    try {
+        let r = await fetch(WORKER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                messages: history,
+                persona: p.text,
+                memoryOn: memoryOn,
+                memory: memoryOn ? memories.map(function (m) { return m.text; }) : []
+            })
+        });
+        let data = await r.json();
+
+        if (image) {
+            delete entry.image;
+            entry.content = text + " [kirim foto]";
+        }
+        history.push({ role: "assistant", content: data.reply });
+
+        if (memoryOn && Array.isArray(data.memories)) {
+            let added = data.memories.filter(function (f) { return addMemory(f); });
+            if (added.length) showToast("🧠 Rin mengingat: " + added.join(", "));
+        }
+        return data.reply;
+    } catch (err) {
+        history.pop();
+        return "Hmph! Koneksinya bermasalah. Coba lagi nanti!";
+    }
+}

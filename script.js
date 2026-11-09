@@ -2259,3 +2259,56 @@ function initProfile() {
 }
 
 initProfile();
+
+function profileText() {
+    let lines = [];
+    PROFILE.bio.forEach(function (row) {
+        if (row[0] !== "Tipe") lines.push(row[0] + ": " + row[1]);
+    });
+    lines.push("Suka: " + PROFILE.likes.join(", "));
+    lines.push("Tidak suka: " + PROFILE.dislikes.join(", "));
+    lines.push("Kebiasaan khas (muncul sesekali): " + PROFILE.habits.join("; "));
+    return lines.join("\n");
+}
+
+async function getReply(text, image) {
+    let entry = { role: "user", content: text };
+    if (image) entry.image = { data: image.base64, mime: image.mime };
+    history.push(entry);
+
+    let chat = getActive();
+    let p = (chat && chat.persona) ? chat.persona : persona;
+
+    try {
+        let r = await fetch(WORKER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                messages: history,
+                persona: p.text,
+                memoryOn: memoryOn,
+                memory: memoryOn ? memories.map(function (m) { return m.text; }) : [],
+                mood: (chat && chat.mood) || "santai",
+                profile: profileText()
+            })
+        });
+        let data = await r.json();
+
+        if (image) {
+            delete entry.image;
+            entry.content = text + " [kirim foto]";
+        }
+        history.push({ role: "assistant", content: data.reply });
+
+        if (data.mood && faceTable()[data.mood] && chat) chat.mood = data.mood;
+
+        if (memoryOn && Array.isArray(data.memories)) {
+            let added = data.memories.filter(function (f) { return addMemory(f); });
+            if (added.length) showToast("🧠 Rin mengingat: " + added.join(", "));
+        }
+        return data.reply;
+    } catch (err) {
+        history.pop();
+        return "Hmph! Koneksinya bermasalah. Coba lagi nanti!";
+    }
+}

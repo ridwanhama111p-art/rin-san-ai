@@ -2089,3 +2089,173 @@ async function getReply(text, image) {
 initHeaderFace();
 renderChat();
 renderList();
+
+const PROFILE = {
+    desc: "Rin adalah gadis tsundere dari kelas 3 yang galak di luar tapi diam-diam perhatian. Dia selalu pura-pura nggak peduli, padahal paling cepat ingat kalau kamu belum makan. Jangan terlalu sering dipuji, nanti dia salah tingkah.",
+    about: "Rin-san adalah asisten AI yang selalu bilang 'bukan berarti aku peduli', lalu peduli habis-habisan. Bicaranya ketus, tapi bantuannya selalu serius dan benar. Kalau suasana hatinya lagi bagus, kamu bisa lihat sisi manisnya, sebentar saja, sebelum dia buru-buru menutupinya.",
+    bio: [
+        ["Nama", "Rin"],
+        ["Panggilan", "Rin-san"],
+        ["Umur", "18 tahun"],
+        ["Kelas", "3 SMA"],
+        ["Ulang tahun", "14 Februari"],
+        ["Tinggi", "158 cm"],
+        ["Golongan darah", "A"],
+        ["Tipe", "Tsundere"],
+        ["Peran", "Asisten AI"]
+    ],
+    traits: ["Gengsi tinggi", "Galak tapi perhatian", "Mudah salah tingkah", "Teliti", "Keras kepala", "Setia"],
+    likes: ["Teh hangat", "Makanan manis", "Kucing", "Hujan sore hari", "Perpustakaan yang sepi", "Dipuji (tapi pura-pura nggak mau)"],
+    dislikes: ["Diganggu waktu lagi serius", "Dibilang imut", "Bangun terlalu pagi", "Orang yang ngeles"],
+    habits: [
+        "Memalingkan wajah kalau dipuji",
+        "Bilang 'bukan berarti aku peduli' setiap habis peduli",
+        "Menyilangkan tangan kalau lagi kesal",
+        "Diam-diam mengingat hal kecil yang kamu ceritakan"
+    ]
+};
+
+function pCard(title) {
+    let c = document.createElement("div");
+    c.className = "p-card";
+    let h = document.createElement("h3");
+    h.className = "p-title";
+    h.textContent = title;
+    c.appendChild(h);
+    return c;
+}
+
+function pChips(list) {
+    let w = document.createElement("div");
+    w.className = "p-chips";
+    list.forEach(function (t) {
+        let s = document.createElement("span");
+        s.className = "p-chip";
+        s.textContent = t;
+        w.appendChild(s);
+    });
+    return w;
+}
+
+function pSub(text) {
+    let d = document.createElement("div");
+    d.className = "p-sub";
+    d.textContent = text;
+    return d;
+}
+
+function pList(list) {
+    let ul = document.createElement("ul");
+    ul.className = "p-list";
+    list.forEach(function (t) {
+        let li = document.createElement("li");
+        li.textContent = t;
+        ul.appendChild(li);
+    });
+    return ul;
+}
+
+function renderProfile() {
+    let chat = getActive();
+    let mood = (chat && chat.mood) || "santai";
+
+    setFace($("profileFace"), mood);
+    $("profileMood").textContent = faceInfo(mood).label;
+    $("profileDesc").textContent = PROFILE.desc;
+
+    let body = $("profileBody");
+    body.innerHTML = "";
+
+    let about = pCard("Deskripsi");
+    let p = document.createElement("p");
+    p.className = "p-text";
+    p.textContent = PROFILE.about;
+    about.appendChild(p);
+    body.appendChild(about);
+
+    let bio = pCard("Biodata");
+    PROFILE.bio.forEach(function (row) {
+        let r = document.createElement("div");
+        r.className = "p-row";
+        let a = document.createElement("span");
+        a.textContent = row[0];
+        let b = document.createElement("span");
+        b.textContent = row[1];
+        r.appendChild(a);
+        r.appendChild(b);
+        bio.appendChild(r);
+    });
+    body.appendChild(bio);
+
+    let traits = pCard("Sifat");
+    traits.appendChild(pChips(PROFILE.traits));
+    body.appendChild(traits);
+
+    let likes = pCard("Kesukaan");
+    likes.appendChild(pSub("Suka"));
+    likes.appendChild(pChips(PROFILE.likes));
+    likes.appendChild(pSub("Tidak suka"));
+    likes.appendChild(pChips(PROFILE.dislikes));
+    body.appendChild(likes);
+
+    let habits = pCard("Kebiasaan");
+    habits.appendChild(pList(PROFILE.habits));
+    body.appendChild(habits);
+
+    let gal = pCard("Galeri ekspresi");
+    let grid = document.createElement("div");
+    grid.className = "p-gallery";
+    let table = faceTable();
+    Object.keys(table).forEach(function (key) {
+        let f = table[key];
+        let tile = document.createElement("div");
+        tile.className = "p-tile";
+        tile.style.backgroundPosition = (f.c / 3 * 100) + "% " + (f.r / 2 * 100) + "%";
+        let span = document.createElement("span");
+        span.textContent = f.label;
+        tile.appendChild(span);
+        tile.onclick = function () { openFaceZoom(key); };
+        grid.appendChild(tile);
+    });
+    gal.appendChild(grid);
+    body.appendChild(gal);
+}
+
+function openFaceZoom(key) {
+    let f = faceInfo(key);
+    let z = $("faceZoom");
+    if (!z) {
+        z = document.createElement("div");
+        z.id = "faceZoom";
+        z.className = "face-zoom";
+        z.innerHTML = '<div class="zoom-img"></div><div class="zoom-label"></div>';
+        z.onclick = function () { z.classList.remove("show"); };
+        document.body.appendChild(z);
+    }
+    z.querySelector(".zoom-img").style.backgroundPosition = (f.c / 3 * 100) + "% " + (f.r / 2 * 100) + "%";
+    z.querySelector(".zoom-label").textContent = f.label;
+    z.classList.add("show");
+}
+
+function openProfile() {
+    renderProfile();
+    toggleSidebar(false);
+    toggleSettings(false);
+    let page = $("profilePage");
+    page.querySelector(".profile-scroll").scrollTop = 0;
+    page.classList.add("show");
+}
+
+function closeProfile() {
+    $("profilePage").classList.remove("show");
+}
+
+function initProfile() {
+    let av = document.getElementById("headerAvatar");
+    if (av) av.onclick = openProfile;
+    $("messages").addEventListener("click", function (e) {
+        if (e.target.closest(".avatar")) openProfile();
+    });
+}
+
+initProfile();

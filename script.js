@@ -1995,3 +1995,97 @@ async function sendMessage() {
 
 initHeaderFace();
 renderChat();
+
+function faceTable() {
+    return {
+        kesal:   { r: 0, c: 0, label: "Kesal 😤" },
+        santai:  { r: 0, c: 1, label: "Santai 😌" },
+        senang:  { r: 0, c: 2, label: "Senang 😊" },
+        dingin:  { r: 0, c: 3, label: "Dingin 😐" },
+        malu:    { r: 1, c: 0, label: "Malu 😳" },
+        ngambek: { r: 1, c: 1, label: "Ngambek 😠" },
+        ngantuk: { r: 1, c: 2, label: "Ngantuk 😴" },
+        salting: { r: 1, c: 3, label: "Salting 🙈" },
+        bingung: { r: 2, c: 0, label: "Bingung ❓" },
+        panik:   { r: 2, c: 1, label: "Panik 😵" },
+        serius:  { r: 2, c: 2, label: "Serius 🤓" },
+        jahil:   { r: 2, c: 3, label: "Jahil 😜" }
+    };
+}
+
+function faceInfo(mood) {
+    let t = faceTable();
+    return t[mood] || t.santai;
+}
+
+function setFace(el, mood) {
+    let f = faceInfo(mood);
+    // geser angka ini kalau wajah kepotong: angka kecil = tampil lebih ke atas
+    let rowY = [3.3, 47.8, 92.2];
+    el.style.backgroundPosition = (f.c / 3 * 100) + "% " + rowY[f.r] + "%, center";
+}
+
+function updateHeaderMood(animate) {
+    let chat = getActive();
+    let mood = (chat && chat.mood) || "santai";
+
+    let av = document.getElementById("headerAvatar");
+    if (av) {
+        setFace(av, mood);
+        if (animate) {
+            av.classList.remove("pop");
+            void av.offsetWidth;
+            av.classList.add("pop");
+        }
+    }
+
+    let sub = document.querySelector(".subtitle");
+    if (sub) {
+        sub.textContent = (chat && chat.mood) ? "Suasana hati: " + faceInfo(mood).label : "semoga suka";
+    }
+}
+
+async function getReply(text, image) {
+    let entry = { role: "user", content: text };
+    if (image) entry.image = { data: image.base64, mime: image.mime };
+    history.push(entry);
+
+    let chat = getActive();
+    let p = (chat && chat.persona) ? chat.persona : persona;
+
+    try {
+        let r = await fetch(WORKER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                messages: history,
+                persona: p.text,
+                memoryOn: memoryOn,
+                memory: memoryOn ? memories.map(function (m) { return m.text; }) : [],
+                mood: (chat && chat.mood) || "santai"
+            })
+        });
+        let data = await r.json();
+
+        if (image) {
+            delete entry.image;
+            entry.content = text + " [kirim foto]";
+        }
+        history.push({ role: "assistant", content: data.reply });
+
+        if (data.mood && faceTable()[data.mood] && chat) chat.mood = data.mood;
+
+        if (memoryOn && Array.isArray(data.memories)) {
+            let added = data.memories.filter(function (f) { return addMemory(f); });
+            if (added.length) showToast("🧠 Rin mengingat: " + added.join(", "));
+        }
+        return data.reply;
+    } catch (err) {
+        history.pop();
+        return "Hmph! Koneksinya bermasalah. Coba lagi nanti!";
+    }
+}
+
+initHeaderFace();
+renderChat();
+renderList();

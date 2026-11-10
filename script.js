@@ -2606,7 +2606,6 @@ function ensureAttachMenu() {
     }
 
     opt(ICON_CAM, "Kamera", function () { camBackInput.click(); });
-    opt(ICON_SELFIE, "Kamera depan", function () { camFrontInput.click(); });
     opt(ICON_IMG, "Galeri", function () { $("fileInput").click(); });
 
     document.body.appendChild(backdrop);

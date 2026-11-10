@@ -2201,24 +2201,6 @@ function renderProfile() {
     let habits = pCard("Kebiasaan");
     habits.appendChild(pList(PROFILE.habits));
     body.appendChild(habits);
-
-    let gal = pCard("Galeri ekspresi");
-    let grid = document.createElement("div");
-    grid.className = "p-gallery";
-    let table = faceTable();
-    Object.keys(table).forEach(function (key) {
-        let f = table[key];
-        let tile = document.createElement("div");
-        tile.className = "p-tile";
-        tile.style.backgroundPosition = (f.c / 3 * 100) + "% " + (f.r / 2 * 100) + "%";
-        let span = document.createElement("span");
-        span.textContent = f.label;
-        tile.appendChild(span);
-        tile.onclick = function () { openFaceZoom(key); };
-        grid.appendChild(tile);
-    });
-    gal.appendChild(grid);
-    body.appendChild(gal);
 }
 
 function openFaceZoom(key) {

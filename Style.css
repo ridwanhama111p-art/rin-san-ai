@@ -1310,3 +1310,7 @@ button:active {
         animation: none;
     }
 }
+
+.profile-sections .p-card:last-child {
+    display: block;
+}

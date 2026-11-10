@@ -2473,3 +2473,166 @@ function renderProfile() {
         body.appendChild(habits);
     }
 }
+
+let camBackInput = null;
+let camFrontInput = null;
+
+async function pickImage(input) {
+    let file = input.files[0];
+    if (!file) return;
+    try {
+        pendingImage = await resizeImage(file);
+        $("previewImg").src = pendingImage.dataUrl;
+        $("previewBar").classList.add("show");
+    } catch (e) {
+        removeImage();
+        showToast("Foto nggak bisa dibaca, coba lagi");
+    }
+    input.value = "";
+}
+
+function makeCamInput(facing) {
+    let i = document.createElement("input");
+    i.type = "file";
+    i.accept = "image/*";
+    i.setAttribute("capture", facing);
+    i.hidden = true;
+    i.addEventListener("change", function () { pickImage(this); });
+    document.body.appendChild(i);
+    return i;
+}
+
+function closeAttachMenu() {
+    let m = $("attachMenu");
+    if (m) m.classList.remove("show");
+}
+
+function ensureAttachMenu() {
+    if ($("attachMenu")) return;
+
+    let ov = document.createElement("div");
+    ov.id = "attachMenu";
+    ov.className = "confirm-overlay";
+    ov.addEventListener("click", function (e) {
+        if (e.target === ov) closeAttachMenu();
+    });
+
+    let card = document.createElement("div");
+    card.className = "confirm-card";
+
+    let title = document.createElement("p");
+    title.textContent = "Kirim foto";
+    card.appendChild(title);
+
+    let stack = document.createElement("div");
+    stack.className = "confirm-stack";
+
+    function opt(label, fn) {
+        let b = document.createElement("button");
+        b.className = "confirm-no";
+        b.textContent = label;
+        b.onclick = function () {
+            closeAttachMenu();
+            fn();
+        };
+        stack.appendChild(b);
+    }
+
+    opt("📷 Kamera", function () { camBackInput.click(); });
+    opt("🤳 Kamera depan", function () { camFrontInput.click(); });
+    opt("🖼️ Galeri", function () { $("fileInput").click(); });
+    opt("Batal", function () {});
+
+    card.appendChild(stack);
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+}
+
+function openAttachMenu() {
+    ensureAttachMenu();
+    $("attachMenu").classList.add("show");
+}
+
+function initAttach() {
+    camBackInput = makeCamInput("environment");
+    camFrontInput = makeCamInput("user");
+    let btn = document.querySelector(".attach-btn");
+    if (btn) btn.onclick = openAttachMenu;
+}
+
+initAttach();
+
+const ICON_CAM = '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+const ICON_SELFIE = '<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+const ICON_IMG = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+
+function closeAttachMenu() {
+    let p = $("attachPop");
+    let b = $("attachBackdrop");
+    if (p) p.classList.remove("show");
+    if (b) b.classList.remove("show");
+}
+
+function ensureAttachMenu() {
+    if ($("attachPop")) return;
+
+    let backdrop = document.createElement("div");
+    backdrop.id = "attachBackdrop";
+    backdrop.className = "attach-backdrop";
+    backdrop.onclick = closeAttachMenu;
+
+    let pop = document.createElement("div");
+    pop.id = "attachPop";
+    pop.className = "attach-pop";
+
+    function opt(iconSvg, label, fn) {
+        let b = document.createElement("button");
+        b.className = "attach-item";
+
+        let ico = document.createElement("span");
+        ico.className = "attach-ico";
+        ico.innerHTML = iconSvg;
+
+        let txt = document.createElement("span");
+        txt.textContent = label;
+
+        b.appendChild(ico);
+        b.appendChild(txt);
+        b.onclick = function () {
+            fn();
+            closeAttachMenu();
+        };
+        pop.appendChild(b);
+    }
+
+    opt(ICON_CAM, "Kamera", function () { camBackInput.click(); });
+    opt(ICON_SELFIE, "Kamera depan", function () { camFrontInput.click(); });
+    opt(ICON_IMG, "Galeri", function () { $("fileInput").click(); });
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(pop);
+}
+
+function openAttachMenu() {
+    ensureAttachMenu();
+
+    let pop = $("attachPop");
+    let area = document.querySelector(".input-area");
+    let btn = document.querySelector(".attach-btn");
+
+    if (area) {
+        pop.style.bottom = (window.innerHeight - area.getBoundingClientRect().top + 10) + "px";
+    }
+    if (btn) {
+        pop.style.left = Math.max(10, btn.getBoundingClientRect().left) + "px";
+    }
+
+    void pop.offsetWidth;
+    $("attachBackdrop").classList.add("show");
+    pop.classList.add("show");
+}
+
+(function () {
+    let btn = document.querySelector(".attach-btn");
+    if (btn) btn.onclick = openAttachMenu;
+})();

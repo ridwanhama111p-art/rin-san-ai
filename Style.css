@@ -1314,3 +1314,96 @@ button:active {
 .profile-sections .p-card:last-child {
     display: block;
 }
+
+.attach-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    background: rgba(0, 0, 0, 0.14);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s;
+}
+
+.attach-backdrop.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.attach-pop {
+    position: fixed;
+    z-index: 26;
+    left: 12px;
+    bottom: 90px;
+    min-width: 240px;
+    padding: 10px;
+    border-radius: 26px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+    transform-origin: bottom left;
+    opacity: 0;
+    transform: scale(0.6) translateY(24px);
+    pointer-events: none;
+    transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2), opacity 0.2s ease;
+}
+
+.attach-pop.show {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    pointer-events: auto;
+}
+
+.attach-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 18px;
+    background: transparent;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 600;
+    text-align: left;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.attach-pop.show .attach-item {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.25s ease, transform 0.3s ease;
+}
+
+.attach-pop.show .attach-item:nth-child(1) { transition-delay: 0.06s; }
+.attach-pop.show .attach-item:nth-child(2) { transition-delay: 0.12s; }
+.attach-pop.show .attach-item:nth-child(3) { transition-delay: 0.18s; }
+
+.attach-item:active {
+    background: var(--soft);
+}
+
+.attach-ico {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--soft);
+    color: var(--soft-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.attach-ico svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}

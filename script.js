@@ -2635,3 +2635,62 @@ function openAttachMenu() {
     let btn = document.querySelector(".attach-btn");
     if (btn) btn.onclick = openAttachMenu;
 })();
+
+function isBlockedReply(d) {
+    return d && typeof d.reply === "string" &&
+        d.reply.indexOf("User location is not supported") !== -1;
+}
+
+async function getReply(text, image) {
+    let entry = { role: "user", content: text };
+    if (image) entry.image = { data: image.base64, mime: image.mime };
+    history.push(entry);
+
+    let chat = getActive();
+    let p = (chat && chat.persona) ? chat.persona : persona;
+
+    let payload = JSON.stringify({
+        messages: history,
+        persona: p.text,
+        memoryOn: memoryOn,
+        memory: memoryOn ? memories.map(function (m) { return m.text; }) : [],
+        mood: (chat && chat.mood) || "santai",
+        profile: profileText()
+    });
+
+    try {
+        let data = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+            let r = await fetch(WORKER_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: payload
+            });
+            data = await r.json();
+            if (!isBlockedReply(data)) break;
+            if (attempt < 3) await new Promise(function (res) { setTimeout(res, 700); });
+        }
+
+        if (isBlockedReply(data)) {
+            history.pop();
+            return "Hmph! Servernya lagi nyasar ke wilayah yang diblokir. Coba kirim lagi sebentar lagi!";
+        }
+
+        if (image) {
+            delete entry.image;
+            entry.content = text + " [kirim foto]";
+        }
+        history.push({ role: "assistant", content: data.reply });
+
+        if (data.mood && faceTable()[data.mood] && chat) chat.mood = data.mood;
+
+        if (memoryOn && Array.isArray(data.memories)) {
+            let added = data.memories.filter(function (f) { return addMemory(f); });
+            if (added.length) showToast("🧠 Rin mengingat: " + added.join(", "));
+        }
+        return data.reply;
+    } catch (err) {
+        history.pop();
+        return "Hmph! Koneksinya bermasalah. Coba lagi nanti!";
+    }
+}

@@ -100,6 +100,23 @@
     </div>
 </div>
 
+<!-- Ditambahkan saat refactor: modal edit pesan. script.js (openEdit/saveEdit)
+     sudah memanggil #editBox, #editInput dan #editResend, tapi elemen ini
+     tidak ada di index.html asli sehingga tombol Edit di menu pesan error.
+     Memakai class confirm-overlay/confirm-card/rename-input yang sudah ada
+     di Style.css, jadi tidak ada CSS baru. -->
+<div id="editBox" class="confirm-overlay">
+    <div class="confirm-card">
+        <p>Edit pesan</p>
+        <input type="text" id="editInput" class="rename-input">
+        <div class="confirm-actions">
+            <button class="confirm-no" onclick="closeEdit()">Batal</button>
+            <button id="editResend" class="confirm-no" onclick="saveEdit(true)">Simpan &amp; kirim ulang</button>
+            <button class="confirm-yes" onclick="saveEdit()">Simpan</button>
+        </div>
+    </div>
+</div>
+
 <div id="personaConfirm" class="confirm-overlay">
     <div class="confirm-card">
         <p>Kepribadian diganti. Chat lama mau diapain?</p>

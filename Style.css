@@ -123,6 +123,14 @@ body {
     border: 2px solid var(--border);
 }
 
+/* Judul header mengisi sisa ruang, jadi tombol 🔍 dan ⚙️ menempel
+   di kanan sebagai satu grup (dulu ⚙️ pakai margin-left:auto,
+   sehingga di layar sempit jarak 🔍–⚙️ cuma sisa flex gap 12px). */
+.header-info {
+    flex: 1;
+    min-width: 0;
+}
+
 .header-info h1 {
     margin: 0;
     padding: 0;
@@ -764,7 +772,10 @@ button:active {
 }
 
 .settings-btn {
-    margin-left: auto;
+    /* margin-left:auto dihapus: .header-info sudah flex:1, jadi
+       tombol ini ikut menempel di kanan. Tambahan 8px di atas
+       flex gap 12px = jarak 20px dari tombol 🔍 di sebelahnya. */
+    margin-left: 8px;
     background: var(--soft);
     color: var(--soft-text);
     padding: 8px 12px;

@@ -36,6 +36,7 @@ let pendingImportData = null; // v2: data backup yang menunggu konfirmasi impor
 let store = { activeId: null, chats: [] };
 let history = [];
 let sending = false;
+let replyController = null; // v2.2-stop: AbortController untuk fetch balasan Rin
 let pendingImage = null;
 let pendingDeleteId = null;
 let pendingRenameId = null;
@@ -980,6 +981,20 @@ function isBlockedReply(d) {
     return d && typeof d.reply === "string" &&
         d.reply.indexOf("User location is not supported") !== -1;
 }
+function updateSendButton() {
+    let b = $("sendBtn");
+    if (!b) return;
+    if (sending) {
+        b.textContent = "\u23f9 Stop";
+        b.onclick = stopReply;
+    } else {
+        b.textContent = "Kirim";
+        b.onclick = sendMessage;
+    }
+}
+function stopReply() {
+    if (replyController) replyController.abort();
+}
 async function getReply(text, image) {
     let entry = { role: "user", content: text };
     if (image) entry.image = { data: image.base64, mime: image.mime };
@@ -1000,11 +1015,19 @@ async function getReply(text, image) {
     try {
         let data = null;
         for (let attempt = 0; attempt < 4; attempt++) {
-            let r = await fetch(WORKER_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: payload
-            });
+            let r;
+            try {
+                r = await fetch(WORKER_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: payload,
+                    signal: replyController ? replyController.signal : undefined
+                });
+            } catch (e) {
+                // v2.2-stop: dibatalkan lewat tombol Stop -> bukan error koneksi.
+                if (e && e.name === "AbortError") { history.pop(); return null; }
+                throw e;
+            }
             // Perbaikan 2026-11-11: Worker pernah mengembalikan 403 Forbidden
             // dengan body teks biasa ("Forbidden"), bukan JSON. Dulu r.json()
             // langsung melempar dan semua error jadi "Koneksinya bermasalah".
@@ -1031,7 +1054,11 @@ async function getReply(text, image) {
                 return "Hmph! Server Rin ngirim balasan kosong. Coba lagi nanti!";
             }
             if (!isBlockedReply(data)) break;
-            if (attempt < 3) await new Promise(function (res) { setTimeout(res, 700); });
+            if (attempt < 3) {
+                await new Promise(function (res) { setTimeout(res, 700); });
+                // v2.2-stop: dibatalkan selama jeda retry -> berhenti, jangan lanjut.
+                if (replyController && replyController.signal.aborted) { history.pop(); return null; }
+            }
         }
 
         if (isBlockedReply(data)) {
@@ -1053,6 +1080,8 @@ async function getReply(text, image) {
         }
         return data.reply;
     } catch (err) {
+        // v2.2-stop: abort juga bisa terjadi saat membaca body balasan.
+        if (err && err.name === "AbortError") { history.pop(); return null; }
         history.pop();
         return "Hmph! Koneksinya bermasalah. Coba lagi nanti!";
     }
@@ -1067,6 +1096,8 @@ async function sendMessage() {
     if (text === "" && !image) return;
 
     sending = true;
+    replyController = new AbortController();
+    updateSendButton();
 
     try {
         let chat = getActive();
@@ -1101,6 +1132,14 @@ async function sendMessage() {
         }
 
         let reply = await getReply(text || "Aku kirim foto ini.", image);
+        // v2.2-stop: reply null = dibatalkan lewat tombol Stop. Pesan user
+        // sudah tersimpan di atas; jangan tampilkan balasan Rin, jangan
+        // simpan balasan, jangan bacakan TTS. Typing dots dihapus, tombol
+        // kembali ke Kirim lewat finally.
+        if (reply === null) {
+            typing.remove();
+            return;
+        }
         // Perbaikan 2026-11-11: kalau getReply gagal (mis. Worker 403),
         // history bisa kosong setelah history.pop() di getReply. Dulu
         // history[history.length - 1].content langsung melempar TypeError,
@@ -1131,7 +1170,9 @@ async function sendMessage() {
         // v2: kalau suara Rin aktif, bacakan balasan baru otomatis
         if (ok && voiceOn) speakRin(reply, rinId);
     } finally {
+        replyController = null;
         sending = false;
+        updateSendButton();
     }
 }
 

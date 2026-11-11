@@ -1992,11 +1992,14 @@ function pickRinVoice() {
     });
     return bestScore > 0 ? best : null;
 }
+/* v2.3: teks miring *...* adalah aksi/gerakan Rin (mis. *cekikikan*,
+   *melirik sekilas*) — dibuang dari yang dibacakan TTS supaya Google
+   tidak membacakannya. Teks tebal **...** tetap dibaca (penekanan). */
 function stripSpeechMarkup(text) {
     return String(text || "")
         .replace(/\*\*\*([^*]+)\*\*\*/g, "$1")
         .replace(/\*\*([^*]+)\*\*/g, "$1")
-        .replace(/\*([^*]+)\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "")
         .replace(/^📷\s*/, "Foto. ")
         .replace(/[😀-🙏🌀-🗿🚀-🛿☀-➿]/gu, " ")
         .replace(/\s+/g, " ")

@@ -1005,7 +1005,31 @@ async function getReply(text, image) {
                 headers: { "Content-Type": "application/json" },
                 body: payload
             });
-            data = await r.json();
+            // Perbaikan 2026-11-11: Worker pernah mengembalikan 403 Forbidden
+            // dengan body teks biasa ("Forbidden"), bukan JSON. Dulu r.json()
+            // langsung melempar dan semua error jadi "Koneksinya bermasalah".
+            // Sekarang cek status dulu dan baca body dengan aman. (r.ok dicek
+            // hanya kalau bertipe boolean, supaya mock/polyfill tanpa properti
+            // itu tidak dianggap gagal.)
+            if (typeof r.ok === "boolean" && !r.ok) {
+                let bodyText = "";
+                try { bodyText = typeof r.text === "function" ? (await r.text()).trim() : ""; } catch (e) { bodyText = ""; }
+                history.pop();
+                if (r.status === 403) {
+                    return "Hmph! Server Rin nolak permintaan (403 Forbidden). Worker-nya lagi diblokir atau mati — bukan salah koneksi kamu. Coba lagi nanti, atau cek Cloudflare Worker rin-san-nya!";
+                }
+                return "Hmph! Server Rin error (HTTP " + (r.status || "?") + (bodyText ? ": " + bodyText.slice(0, 120) : "") + "). Coba lagi nanti!";
+            }
+            try {
+                data = await r.json();
+            } catch (e) {
+                history.pop();
+                return "Hmph! Server Rin ngirim balasan yang nggak bisa dibaca. Coba lagi nanti!";
+            }
+            if (!data || typeof data.reply !== "string") {
+                history.pop();
+                return "Hmph! Server Rin ngirim balasan kosong. Coba lagi nanti!";
+            }
             if (!isBlockedReply(data)) break;
             if (attempt < 3) await new Promise(function (res) { setTimeout(res, 700); });
         }
@@ -1077,7 +1101,11 @@ async function sendMessage() {
         }
 
         let reply = await getReply(text || "Aku kirim foto ini.", image);
-        let ok = history[history.length - 1].content === reply;
+        // Perbaikan 2026-11-11: kalau getReply gagal (mis. Worker 403),
+        // history bisa kosong setelah history.pop() di getReply. Dulu
+        // history[history.length - 1].content langsung melempar TypeError,
+        // typing dots nyangkut dan pesan error Rin tidak pernah tampil.
+        let ok = history.length > 0 && history[history.length - 1].content === reply;
 
         typing.remove();
 

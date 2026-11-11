@@ -20,6 +20,18 @@ const PERSONA_KEY = "rinPersona";
 const MEMORY_KEY = "rinMemory";
 const MEMORY_ON_KEY = "rinMemoryOn";
 const MEMORY_MAX = 40;
+const VOICE_KEY = "rinVoiceOn"; // v2: suara Rin (TTS) otomatis, default mati
+
+let voiceOn = false; // v2: baca otomatis balasan Rin
+let speakingMsgId = null; // v2: id pesan Rin yang sedang dibacakan
+let recognition = null; // v2: SpeechRecognition aktif (null kalau tidak merekam)
+let listening = false; // v2: mic sedang merekam
+let micBaseText = ""; // v2: isi input sebelum mic dinyalakan
+let chatSearchQuery = ""; // v2: filter judul chat di sidebar
+let msgSearchQuery = ""; // v2: kata kunci cari pesan di chat aktif
+let msgMatches = []; // v2: id pesan yang cocok dengan pencarian pesan
+let msgMatchIndex = -1; // v2: indeks match yang sedang ditunjuk
+let pendingImportData = null; // v2: data backup yang menunggu konfirmasi impor
 
 let store = { activeId: null, chats: [] };
 let history = [];
@@ -496,16 +508,31 @@ function renderChat() {
 
     if (changed) saveStore();
     updateHeaderMood();
+    applyMsgSearch(); // v2: pulihkan highlight pencarian pesan setelah render ulang
 }
 function renderList() {
     let list = $("chatList");
     if (!list) return;
     list.innerHTML = "";
 
-    store.chats
-        .slice()
-        .sort(function (a, b) { return b.updated - a.updated; })
-        .forEach(function (c) {
+    let chats = store.chats.slice()
+        .sort(function (a, b) { return b.updated - a.updated; });
+    // v2: filter judul chat (case-insensitive); kosong = tampilkan semua
+    if (chatSearchQuery) {
+        chats = chats.filter(function (c) {
+            return c.title.toLowerCase().indexOf(chatSearchQuery) !== -1;
+        });
+    }
+    if (chats.length === 0) {
+        let empty = document.createElement("div");
+        empty.className = "memory-empty";
+        empty.textContent = chatSearchQuery
+            ? "Tidak ada obrolan yang cocok."
+            : "Belum ada obrolan.";
+        list.appendChild(empty);
+        return;
+    }
+    chats.forEach(function (c) {
             let item = document.createElement("div");
             item.className = "chat-item" + (c.id === store.activeId ? " active" : "");
 
@@ -572,6 +599,7 @@ function toggleSidebar(open) {
 }
 function switchChat(id) {
     if (sending) return;
+    stopSpeaking(); // v2: jangan lanjut membacakan chat lama
     store.activeId = id;
     saveStore();
     renderChat();
@@ -747,6 +775,16 @@ function addMessage(name, text, type, savedTime, imgSrc, animate, msgId, mood) {
             copyText(text, copyBtn);
         };
         footer.appendChild(copyBtn);
+
+        // v2: tombol speaker — putar sekali balasan ini (jalan walau toggle mati)
+        let speakBtn = document.createElement("button");
+        speakBtn.className = "copy-btn msg-act speak-btn";
+        speakBtn.textContent = "🔊";
+        speakBtn.dataset.msgId = msgId || "";
+        speakBtn.onclick = function () {
+            speakRin(text, msgId);
+        };
+        footer.appendChild(speakBtn);
     }
 
     body.appendChild(sender);
@@ -1061,6 +1099,9 @@ async function sendMessage() {
         saveStore();
         renderList();
         updateHeaderMood(true);
+
+        // v2: kalau suara Rin aktif, bacakan balasan baru otomatis
+        if (ok && voiceOn) speakRin(reply, rinId);
     } finally {
         sending = false;
     }
@@ -1279,23 +1320,33 @@ function toggleSettings(open) {
     ov.classList.toggle("show", show);
 }
 function toggleAcc(which) {
-    let isPersona = which === "persona";
-    let body = $(isPersona ? "accPersona" : "accMemory");
-    let head = $(isPersona ? "accPersonaHead" : "accMemoryHead");
+    // v2: peta accordion — persona / memory / backup (suara & cadangan)
+    let map = {
+        persona: { body: "accPersona", head: "accPersonaHead" },
+        memory: { body: "accMemory", head: "accMemoryHead" },
+        backup: { body: "accBackup", head: "accBackupHead" }
+    };
+    let entry = map[which];
+    if (!entry) return;
+    let body = $(entry.body);
+    let head = $(entry.head);
+    if (!body || !head) return;
     let open = !body.classList.contains("open");
 
     body.classList.toggle("open", open);
     head.querySelector(".acc-arrow").textContent = open ? "↓" : ">";
 
     if (open) {
-        if (isPersona) {
+        if (which === "persona") {
             let chat = getActive();
             let eff = (chat && chat.persona) ? chat.persona : persona;
             pickedPreset = eff.preset || "Tsundere";
             $("personaInput").value = eff.text;
             renderChips();
-        } else {
+        } else if (which === "memory") {
             renderMemory();
+        } else if (which === "backup") {
+            renderVoiceToggle();
         }
     }
 }
@@ -1569,7 +1620,449 @@ function initAttach() {
 }
 
 /* =================================================================
-   15. Event listener (sekali saja)
+   15. Pencarian, backup & suara (v2)
+   ================================================================ */
+
+/* --- 15a. Cari chat di sidebar --- */
+function onChatSearch(q) {
+    chatSearchQuery = (q || "").trim().toLowerCase();
+    renderList();
+}
+
+/* --- 15b. Cari pesan di chat aktif ---
+   Perilaku: ketik = semua pesan yang cocok langsung diberi highlight
+   (class search-hit) dan penghitung "n/total" diperbarui, tapi layar
+   TIDAK melompat sendiri. Enter / tombol ‹ › melompat ke match
+   berikutnya/sebelumnya (melintas, membungkus di ujung) dan menandai
+   match aktif (class search-current). Tutup bar = bersihkan pencarian. */
+function toggleMsgSearch(show) {
+    let bar = $("msgSearchBar");
+    if (!bar) return;
+    let open = typeof show === "boolean" ? show : !bar.classList.contains("show");
+    bar.classList.toggle("show", open);
+    if (open) {
+        let inp = $("msgSearchInput");
+        if (inp) inp.focus();
+    } else {
+        msgSearchQuery = "";
+        let inp = $("msgSearchInput");
+        if (inp) inp.value = "";
+        applyMsgSearch();
+    }
+}
+function onMsgSearch(q) {
+    msgSearchQuery = (q || "").trim().toLowerCase();
+    msgMatchIndex = -1;
+    applyMsgSearch();
+}
+function applyMsgSearch() {
+    let box = $("messages");
+    if (!box) return;
+    box.querySelectorAll(".message.search-hit").forEach(function (el) {
+        el.classList.remove("search-hit");
+    });
+    box.querySelectorAll(".message.search-current").forEach(function (el) {
+        el.classList.remove("search-current");
+    });
+    msgMatches = [];
+    if (!msgSearchQuery) {
+        msgMatchIndex = -1;
+        updateMsgSearchCount();
+        return;
+    }
+    let chat = getActive();
+    if (!chat) return;
+    chat.messages.forEach(function (m) {
+        let hay = (m.text || "") + " " + (m.caption || "");
+        if (hay.toLowerCase().indexOf(msgSearchQuery) !== -1 && m.id) {
+            msgMatches.push(m.id);
+        }
+    });
+    msgMatches.forEach(function (id) {
+        let row = box.querySelector('[data-id="' + id + '"]');
+        if (row) row.classList.add("search-hit");
+    });
+    if (msgMatches.length) {
+        if (msgMatchIndex < 0 || msgMatchIndex >= msgMatches.length) msgMatchIndex = 0;
+        markMsgSearchCurrent(false);
+    } else {
+        msgMatchIndex = -1;
+    }
+    updateMsgSearchCount();
+}
+function markMsgSearchCurrent(scroll) {
+    let box = $("messages");
+    if (!box) return;
+    box.querySelectorAll(".message.search-current").forEach(function (el) {
+        el.classList.remove("search-current");
+    });
+    if (msgMatchIndex < 0 || msgMatchIndex >= msgMatches.length) return;
+    let row = box.querySelector('[data-id="' + msgMatches[msgMatchIndex] + '"]');
+    if (row) {
+        row.classList.add("search-current");
+        if (scroll && row.scrollIntoView) {
+            row.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }
+}
+function msgSearchNext(dir) {
+    if (!msgMatches.length) {
+        if (msgSearchQuery) showToast("Tidak ditemukan");
+        return;
+    }
+    msgMatchIndex = (msgMatchIndex + dir + msgMatches.length) % msgMatches.length;
+    markMsgSearchCurrent(true);
+    updateMsgSearchCount();
+}
+function updateMsgSearchCount() {
+    let c = $("msgSearchCount");
+    if (!c) return;
+    if (!msgSearchQuery) {
+        c.textContent = "";
+        return;
+    }
+    c.textContent = msgMatches.length
+        ? (msgMatchIndex + 1) + "/" + msgMatches.length
+        : "Tidak ditemukan";
+}
+
+/* --- 15c. Backup JSON: ekspor & impor --- */
+function exportBackup() {
+    if (typeof Blob === "undefined" || typeof URL === "undefined" || !URL.createObjectURL) {
+        showToast("Browser ini tidak mendukung unduhan file");
+        return;
+    }
+    let now = new Date();
+    let pad = function (n) { return String(n).padStart(2, "0"); };
+    let stamp = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate());
+    let theme = null;
+    try { theme = localStorage.getItem(THEME_KEY); } catch (e) {}
+    let data = {
+        app: "rin-san-ai",
+        version: 2,
+        exportedAt: now.toISOString(),
+        rinChats: store,
+        rinPersona: persona,
+        rinMemory: memories,
+        rinTheme: theme,
+        rinMemoryOn: memoryOn,
+        rinVoiceOn: voiceOn
+    };
+    let blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = "rin-san-ai-backup-" + stamp + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    showToast("✅ Cadangan diunduh");
+}
+function triggerImportBackup() {
+    let f = $("importFile");
+    if (f) f.click();
+}
+function importBackupFile(input) {
+    let file = input.files && input.files[0];
+    input.value = "";
+    if (!file) return;
+    if (typeof FileReader === "undefined") {
+        showToast("Browser ini tidak mendukung impor file");
+        return;
+    }
+    let reader = new FileReader();
+    reader.onload = function () {
+        let data;
+        try {
+            data = JSON.parse(reader.result);
+        } catch (e) {
+            showToast("File backup tidak valid");
+            return;
+        }
+        let chatsOk = data && typeof data === "object" && data.rinChats &&
+            (Array.isArray(data.rinChats.chats) || Array.isArray(data.rinChats));
+        if (!chatsOk) {
+            showToast("File backup tidak valid");
+            return;
+        }
+        askImportBackup(data);
+    };
+    reader.onerror = function () {
+        showToast("File backup tidak bisa dibaca");
+    };
+    reader.readAsText(file);
+}
+function askImportBackup(data) {
+    pendingImportData = data;
+    let n = Array.isArray(data.rinChats.chats)
+        ? data.rinChats.chats.length
+        : (Array.isArray(data.rinChats) ? data.rinChats.length : 0);
+    let t = $("importConfirmText");
+    if (t) {
+        t.textContent = "Impor cadangan ini? " + n + " obrolan akan menggantikan semua data lama." +
+            (data.exportedAt ? " Diekspor: " + String(data.exportedAt).slice(0, 10) + "." : "");
+    }
+    let box = $("importConfirmBox");
+    if (box) box.classList.add("show");
+}
+function closeImportConfirm() {
+    let box = $("importConfirmBox");
+    if (box) box.classList.remove("show");
+    pendingImportData = null;
+}
+function doImportBackup() {
+    let data = pendingImportData;
+    closeImportConfirm();
+    if (!data) return;
+    stopSpeaking();
+    stopListening();
+
+    let incoming = Array.isArray(data.rinChats)
+        ? { activeId: null, chats: data.rinChats }
+        : data.rinChats;
+    store = {
+        activeId: incoming.activeId || null,
+        chats: (incoming.chats || []).filter(function (c) {
+            return c && Array.isArray(c.messages);
+        })
+    };
+    if (store.chats.length === 0) {
+        let c = makeChat();
+        store.chats.push(c);
+        store.activeId = c.id;
+    }
+    if (!store.chats.some(function (c) { return c.id === store.activeId; })) {
+        store.activeId = store.chats[0].id;
+    }
+    if (data.rinPersona && typeof data.rinPersona.text === "string") {
+        persona = data.rinPersona;
+    }
+    if (Array.isArray(data.rinMemory)) {
+        memories = data.rinMemory
+            .filter(function (m) { return m && typeof m.text === "string"; })
+            .slice(-MEMORY_MAX);
+    }
+    if (typeof data.rinMemoryOn === "boolean") memoryOn = data.rinMemoryOn;
+    if (typeof data.rinVoiceOn === "boolean") voiceOn = data.rinVoiceOn;
+    let theme = (typeof data.rinTheme === "string" && data.rinTheme) ? data.rinTheme : null;
+    try {
+        saveStore();
+        saveMemory();
+        localStorage.setItem(PERSONA_KEY, JSON.stringify(persona));
+        localStorage.setItem(VOICE_KEY, voiceOn ? "1" : "0");
+        if (theme) localStorage.setItem(THEME_KEY, theme);
+    } catch (e) {}
+    if (theme) setTheme(theme);
+
+    chatSearchQuery = "";
+    let cs = $("chatSearchInput");
+    if (cs) cs.value = "";
+    msgSearchQuery = "";
+    msgMatches = [];
+    msgMatchIndex = -1;
+    let ms = $("msgSearchInput");
+    if (ms) ms.value = "";
+    updateMsgSearchCount();
+
+    renderVoiceToggle();
+    renderChat();
+    renderList();
+    renderMemory();
+    toggleSettings(false);
+    showToast("✅ Cadangan berhasil diimpor");
+}
+
+/* --- 15d. Suara Rin: TTS (speechSynthesis) --- */
+function loadVoice() {
+    try {
+        voiceOn = localStorage.getItem(VOICE_KEY) === "1";
+    } catch (e) {
+        voiceOn = false;
+    }
+}
+function saveVoice() {
+    try {
+        localStorage.setItem(VOICE_KEY, voiceOn ? "1" : "0");
+    } catch (e) {}
+}
+function renderVoiceToggle() {
+    let b = $("voiceToggle");
+    if (!b) return;
+    b.textContent = voiceOn ? "Suara Rin: Aktif ✅" : "Suara Rin: Mati ⏸️";
+    b.classList.toggle("on", voiceOn);
+}
+function toggleVoice() {
+    voiceOn = !voiceOn;
+    saveVoice();
+    if (!voiceOn) stopSpeaking();
+    renderVoiceToggle();
+    showToast(voiceOn ? "🔊 Suara Rin aktif" : "🔇 Suara Rin mati");
+}
+function pickRinVoice() {
+    if (typeof speechSynthesis === "undefined" || !speechSynthesis.getVoices) return null;
+    let voices = speechSynthesis.getVoices() || [];
+    function score(v) {
+        let s = 0;
+        let lang = (v.lang || "").toLowerCase();
+        let name = (v.name || "").toLowerCase();
+        if (lang.indexOf("id") === 0) s += 10;
+        if (name.indexOf("google bahasa indonesia") !== -1) s += 10;
+        else if (name.indexOf("indonesian") !== -1) s += 5;
+        if (name.indexOf("female") !== -1 || name.indexOf("wanita") !== -1) s += 2;
+        return s;
+    }
+    let best = null;
+    let bestScore = 0;
+    voices.forEach(function (v) {
+        let s = score(v);
+        if (s > bestScore) {
+            bestScore = s;
+            best = v;
+        }
+    });
+    return bestScore > 0 ? best : null;
+}
+function stripSpeechMarkup(text) {
+    return String(text || "")
+        .replace(/\*\*\*([^*]+)\*\*\*/g, "$1")
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "$1")
+        .replace(/^📷\s*/, "Foto. ")
+        .replace(/[😀-🙏🌀-🗿🚀-🛿☀-➿]/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function speakRin(text, msgId) {
+    if (typeof speechSynthesis === "undefined" ||
+        typeof SpeechSynthesisUtterance === "undefined") {
+        showToast("Browser ini tidak mendukung suara");
+        return;
+    }
+    let clean = stripSpeechMarkup(text);
+    if (!clean) return;
+    stopSpeaking();
+    let u = new SpeechSynthesisUtterance(clean);
+    u.lang = "id-ID";
+    u.rate = 1;
+    u.pitch = 1.05;
+    let v = pickRinVoice();
+    if (v) u.voice = v;
+    speakingMsgId = msgId || null;
+    markSpeakingButtons();
+    u.onend = function () {
+        if (speakingMsgId === msgId) {
+            speakingMsgId = null;
+            markSpeakingButtons();
+        }
+    };
+    u.onerror = function () {
+        if (speakingMsgId === msgId) {
+            speakingMsgId = null;
+            markSpeakingButtons();
+        }
+    };
+    try {
+        speechSynthesis.speak(u);
+    } catch (e) {
+        speakingMsgId = null;
+        markSpeakingButtons();
+    }
+}
+function stopSpeaking() {
+    if (typeof speechSynthesis !== "undefined" && speechSynthesis.cancel) {
+        try { speechSynthesis.cancel(); } catch (e) {}
+    }
+    speakingMsgId = null;
+    markSpeakingButtons();
+}
+function markSpeakingButtons() {
+    if (typeof document === "undefined" || !document.querySelectorAll) return;
+    document.querySelectorAll(".speak-btn").forEach(function (b) {
+        let on = speakingMsgId && b.dataset && b.dataset.msgId === speakingMsgId;
+        b.classList.toggle("speaking", !!on);
+        b.textContent = on ? "⏹️" : "🔊";
+    });
+}
+
+/* --- 15e. Input suara: STT (SpeechRecognition) --- */
+function getSpeechRecognition() {
+    if (typeof window === "undefined") return null;
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+function toggleMic() {
+    if (listening) stopListening();
+    else startListening();
+}
+function startListening() {
+    let SR = getSpeechRecognition();
+    if (!SR) {
+        showToast("Browser ini tidak mendukung input suara");
+        return;
+    }
+    if (recognition) {
+        try { recognition.stop(); } catch (e) {}
+    }
+    let input = $("userInput");
+    micBaseText = input ? input.value : "";
+    try {
+        recognition = new SR();
+        recognition.lang = "id-ID";
+        recognition.interimResults = true;
+        recognition.continuous = false;
+        recognition.onresult = function (e) {
+            let finalText = "";
+            let interim = "";
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                let r = e.results[i];
+                if (r.isFinal) finalText += r[0].transcript;
+                else interim += r[0].transcript;
+            }
+            let t = (finalText || interim).trim();
+            if (input) {
+                input.value = (micBaseText ? micBaseText + " " : "") + t;
+                input.focus();
+            }
+        };
+        recognition.onerror = function (e) {
+            if (e && e.error === "not-allowed") {
+                showToast("Izin mikrofon ditolak");
+            } else if (e && e.error !== "aborted" && e.error !== "no-speech") {
+                showToast("Input suara gagal, coba lagi");
+            }
+        };
+        recognition.onend = function () {
+            listening = false;
+            updateMicButton();
+        };
+        recognition.onstart = function () {
+            listening = true;
+            updateMicButton();
+        };
+        recognition.start();
+    } catch (e) {
+        showToast("Input suara gagal, coba lagi");
+        recognition = null;
+        listening = false;
+        updateMicButton();
+    }
+}
+function stopListening() {
+    if (recognition) {
+        try { recognition.stop(); } catch (e) {}
+    }
+    listening = false;
+    updateMicButton();
+}
+function updateMicButton() {
+    let b = $("micBtn");
+    if (!b) return;
+    b.textContent = listening ? "🔴" : "🎤";
+    b.classList.toggle("recording", listening);
+}
+
+/* =================================================================
+   16. Event listener (sekali saja)
    ================================================================ */
 
 on("userInput", "keydown", function (e) {
@@ -1599,7 +2092,7 @@ on("fileInput", "change", async function () {
 });
 
 /* =================================================================
-   16. Init (sekali saja, di akhir file)
+   17. Init (sekali saja, di akhir file)
    ================================================================ */
 
 extendPresets();
@@ -1607,6 +2100,12 @@ loadTheme();
 loadStore();
 loadPersona();
 loadMemory();
+loadVoice(); // v2
+renderVoiceToggle(); // v2
+if (typeof speechSynthesis !== "undefined" && speechSynthesis.addEventListener) {
+    // v2: daftar suara kadang baru terisi belakangan (async)
+    speechSynthesis.addEventListener("voiceschanged", function () { pickRinVoice(); });
+}
 initHeaderFace();
 initAttach();
 initProfile();

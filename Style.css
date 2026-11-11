@@ -1407,3 +1407,92 @@ button:active {
     stroke-linecap: round;
     stroke-linejoin: round;
 }
+/* ===== v2: pencarian, backup & suara ===== */
+
+/* Cari chat di sidebar */
+.chat-search-input {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+}
+
+/* Bar cari pesan di area chat (disembunyikan sampai tombol 🔍 ditekan) */
+.msg-search-bar {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.msg-search-bar.show {
+    display: flex;
+}
+
+.msg-search-input {
+    padding: 8px 10px;
+    font-size: 14px;
+}
+
+.msg-search-count {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.msg-search-btn {
+    padding: 8px 10px;
+    background: var(--soft);
+    color: var(--soft-text);
+}
+
+/* Highlight pesan yang cocok dengan pencarian */
+.message.search-hit .message-bubble {
+    outline: 2px solid var(--accent);
+}
+
+.message.search-current .message-bubble {
+    outline: 3px solid var(--primary);
+    background: var(--soft);
+}
+
+/* Tombol mic di area input */
+.mic-btn {
+    background: var(--soft);
+    color: var(--soft-text);
+    padding: 12px 14px;
+}
+
+.mic-btn.recording {
+    background: #e5646e;
+    color: #fff;
+    animation: micPulse 1s ease-in-out infinite;
+}
+
+@keyframes micPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+
+/* Tombol speaker sedang membacakan */
+.speak-btn.speaking {
+    color: var(--primary);
+    font-weight: bold;
+}
+
+/* Toggle suara di Pengaturan (memakai .memory-toggle sebagai basis) */
+#voiceToggle.on {
+    background: var(--primary);
+    color: #fff;
+}
+
+/* Catatan kecil di panel cadangan */
+.backup-note {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+    margin: 0 0 12px;
+    text-align: left;
+}

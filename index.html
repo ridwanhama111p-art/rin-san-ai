@@ -18,7 +18,16 @@
             <h1>Rin-san AI</h1>
             <p class="subtitle">semoga suka</p>
         </div>
+        <button class="menu-btn" onclick="toggleMsgSearch()" title="Cari pesan">🔍</button>
         <button class="settings-btn" onclick="toggleSettings()">⚙️</button>
+    </div>
+
+    <div id="msgSearchBar" class="msg-search-bar">
+        <input type="text" id="msgSearchInput" class="msg-search-input" placeholder="Cari di obrolan ini..." oninput="onMsgSearch(this.value)" onkeydown="if (event.key === 'Enter') { event.preventDefault(); msgSearchNext(event.shiftKey ? -1 : 1); }">
+        <span id="msgSearchCount" class="msg-search-count"></span>
+        <button class="msg-search-btn" onclick="msgSearchNext(-1)" title="Sebelumnya">‹</button>
+        <button class="msg-search-btn" onclick="msgSearchNext(1)" title="Berikutnya">›</button>
+        <button class="msg-search-btn" onclick="toggleMsgSearch(false)" title="Tutup">✕</button>
     </div>
 
     <div id="messages"></div>
@@ -32,6 +41,7 @@
         <button class="attach-btn" onclick="document.getElementById('fileInput').click()">📎</button>
         <input type="file" id="fileInput" accept="image/*" hidden>
         <input type="text" id="userInput" placeholder="Ketik pesan...">
+        <button id="micBtn" class="mic-btn" onclick="toggleMic()" title="Input suara">🎤</button>
         <button onclick="sendMessage()">Kirim</button>
     </div>
 
@@ -40,6 +50,7 @@
 <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 <div id="sidebar" class="sidebar">
     <div class="sidebar-title">Riwayat obrolan</div>
+    <input type="text" id="chatSearchInput" class="chat-search-input" placeholder="Cari obrolan..." oninput="onChatSearch(this.value)">
     <div id="chatList" class="chat-list"></div>
 
     <div class="theme-title">Tema</div>
@@ -86,6 +97,17 @@
             <button onclick="addManualMemory()">+</button>
         </div>
         <button id="memoryClear" class="acc-save confirm-no" onclick="clearMemory()">Hapus semua</button>
+    </div>
+
+    <button id="accBackupHead" class="acc-head" onclick="toggleAcc('backup')">
+        <span>Suara &amp; cadangan 💾</span><span class="acc-arrow">&gt;</span>
+    </button>
+    <div id="accBackup" class="acc-body">
+        <button id="voiceToggle" class="memory-toggle" onclick="toggleVoice()"></button>
+        <p class="backup-note">Suara Rin dibacakan pakai suara di perangkatmu. Tombol 🔊 di tiap balasan Rin memutar sekali, tombol 🎤 di kolom ketik untuk input suara.</p>
+        <button class="acc-save" onclick="exportBackup()">⬇️ Ekspor cadangan (JSON)</button>
+        <button class="acc-save" onclick="triggerImportBackup()">⬆️ Impor cadangan (JSON)</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden onchange="importBackupFile(this)">
     </div>
 </div>
 
@@ -140,6 +162,16 @@
     </div>
 </div>
   
+<div id="importConfirmBox" class="confirm-overlay">
+    <div class="confirm-card">
+        <p id="importConfirmText">Impor cadangan ini? Semua data lama akan ditimpa.</p>
+        <div class="confirm-actions">
+            <button class="confirm-no" onclick="closeImportConfirm()">Batal</button>
+            <button class="confirm-yes" onclick="doImportBackup()">Ya, impor</button>
+        </div>
+    </div>
+</div>
+
 <div id="confirmBox" class="confirm-overlay">
     <div class="confirm-card">
         <p id="confirmText">Hapus obrolan ini?</p>

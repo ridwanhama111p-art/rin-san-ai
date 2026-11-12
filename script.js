@@ -70,17 +70,29 @@ const PRESETS = [
    dari suasana adegan itu tanpa perlu ubah Worker. */
 const SCENES = [
     { id: "sekolah", icon: "🏫", name: "Di Sekolah", desc: "Teman sebangku di kelas, jam istirahat",
-      prompt: "Adegan: kalian berdua di sekolah, di kelas saat jam istirahat. Rin adalah teman sebangkumu. Suasana kelas ramai, tapi obrolan kalian berdua terasa seperti dunia sendiri. Rin tetap tsundere seperti biasa, pura-pura cuek padahal senang diajak ngobrol." },
+      mood: "santai",
+      prompt: "Adegan: kalian berdua di sekolah, di kelas saat jam istirahat. Rin adalah teman sebangkumu. Suasana kelas ramai, tapi obrolan kalian berdua terasa seperti dunia sendiri. Rin tetap tsundere seperti biasa, pura-pura cuek padahal senang diajak ngobrol.",
+      opening: "*Jam istirahat. Kelas ramai, tapi Rin tetap duduk di bangkunya, pura-pura sibuk membaca buku. Begitu kamu menoleh ke arahnya, dia langsung membuang muka...*\n\nA-apa lihat-lihat? Bukan berarti aku nunggu kamu ngajak ngobrol, ya!" },
     { id: "kafe", icon: "☕", name: "Di Kafe", desc: "Nongkrong bareng sepulang sekolah",
-      prompt: "Adegan: kalian berdua di kafe kecil sepulang sekolah. Rin duduk di seberang meja, menyeruput minuman favoritnya. Suasananya santai dan hangat, cocok buat ngobrol panjang." },
+      mood: "santai",
+      prompt: "Adegan: kalian berdua di kafe kecil sepulang sekolah. Rin duduk di seberang meja, menyeruput minuman favoritnya. Suasananya santai dan hangat, cocok buat ngobrol panjang.",
+      opening: "*Sore hari di kafe kecil dekat sekolah. Aroma kopi memenuhi ruangan. Rin duduk di seberang meja, menyeruput minumannya pelan...*\n\nHmph, jangan salah paham. Aku ke sini bukan karena mau ketemu kamu, cuma... kebetulan saja." },
     { id: "rumah", icon: "🏠", name: "Di Rumah", desc: "Santai di rumah, malam hari",
-      prompt: "Adegan: kalian berdua di rumah pada malam hari, suasana tenang dan nyaman. Rin lagi santai, mungkin sambil minum teh hangat. Ngobrolnya pelan dan hangat, seperti di rumah sendiri." },
+      mood: "malu",
+      prompt: "Adegan: kalian berdua di rumah pada malam hari, suasana tenang dan nyaman. Rin lagi santai, mungkin sambil minum teh hangat. Ngobrolnya pelan dan hangat, seperti di rumah sendiri.",
+      opening: "*Malam hari, tepatnya jam 8 malam. Kamu bersiap untuk tidur. Saat hampir menarik selimut, tiba-tiba pintu kamarmu terbuka pelan dan muncullah Rin, menggenggam bantal; dengan wajah gelisah dia berkata...*\n\nA-anu... boleh tidak aku tidur di sini malam ini? B-bukan berarti aku takut tidur sendiri, ya! Cuma... kamarmu lebih hangat..." },
     { id: "perpus", icon: "📚", name: "Perpustakaan", desc: "Belajar bareng, jangan berisik",
-      prompt: "Adegan: kalian berdua di perpustakaan sekolah, belajar bareng. Harus bicara pelan-pelan biar tidak dimarahi pustakawan. Rin pura-pura fokus belajar padahal lebih sibuk memperhatikanmu." },
+      mood: "serius",
+      prompt: "Adegan: kalian berdua di perpustakaan sekolah, belajar bareng. Harus bicara pelan-pelan biar tidak dimarahi pustakawan. Rin pura-pura fokus belajar padahal lebih sibuk memperhatikanmu.",
+      opening: "*Perpustakaan sekolah yang sunyi. Di antara rak-rak buku, Rin duduk di seberang meja, tumpukan buku di depannya...*\n\nSsst... pelan-pelan! Kalau kita ketahuan berisik, pustakawan bisa marah. ...Tapi, kamu mau bantu aku cari buku ini, kan?" },
     { id: "halte", icon: "🌧️", name: "Halte Hujan", desc: "Kehujanan di halte bus",
-      prompt: "Adegan: hujan deras, kalian berdua berteduh di halte bus menunggu hujan reda. Rin kedinginan tapi gengsi mengakuinya. Suasananya dingin, basah, dan romantis dengan caranya sendiri." },
+      mood: "kesal",
+      prompt: "Adegan: hujan deras, kalian berdua berteduh di halte bus menunggu hujan reda. Rin kedinginan tapi gengsi mengakuinya. Suasananya dingin, basah, dan romantis dengan caranya sendiri.",
+      opening: "*Hujan deras mengguyur halte bus. Kamu berteduh di sana, dan tak lama kemudian Rin datang berlari, basah kuyup...*\n\nHujan sialan ini... Hmph, jangan lihat aku kayak gitu! Aku cuma... kebetulan berteduh di sini juga." },
     { id: "festival", icon: "🎆", name: "Festival Sekolah", desc: "Stand kelas dan kembang api",
-      prompt: "Adegan: festival sekolah sedang berlangsung, ramai dan meriah. Rin menjaga stand kelas bersama kamu. Ada lampu-lampu, jajanan, dan nanti malam ada kembang api. Rin semangat tapi tetap gengsi kalau ketahuan senang." }
+      mood: "senang",
+      prompt: "Adegan: festival sekolah sedang berlangsung, ramai dan meriah. Rin menjaga stand kelas bersama kamu. Ada lampu-lampu, jajanan, dan nanti malam ada kembang api. Rin semangat tapi tetap gengsi kalau ketahuan senang.",
+      opening: "*Festival sekolah sedang ramai-ramainya. Lampu-lampu warna-warni, aroma jajanan, dan suara tawa di mana-mana. Rin berdiri di depan stand kelas, memakai celemek...*\n\nK-kamu datang juga... Ayo, coba dagangan stand kami! Bukan berarti aku masak khusus buat kamu atau apa..." }
 ];
 function sceneById(id) {
     return SCENES.find(function (s) { return s.id === id; }) || null;
@@ -1483,6 +1495,23 @@ function renderScenes() {
         box.appendChild(b);
     });
 }
+function makeOpening(sc) {
+    // v2.4.1: pesan pertama Rin saat adegan dimulai — narasi adegan
+    // (miring, tidak dibacakan TTS) + sapaan Rin. Disimpan sebagai
+    // pesan biasa, jadi ikut tersimpan, ter-backup, dan masuk history.
+    return {
+        id: newId(),
+        name: "Rin-san",
+        text: sc.opening,
+        mood: sc.mood || "santai",
+        type: "rin",
+        time: new Date().toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false
+        })
+    };
+}
 function startSceneChat(id) {
     if (sending) {
         showToast("Tunggu Rin-san selesai bales dulu ya");
@@ -1494,6 +1523,11 @@ function startSceneChat(id) {
     let existing = store.chats.filter(function (c) { return c.scene === id; })
         .sort(function (a, b) { return b.updated - a.updated; })[0];
     if (existing) {
+        // Chat adegan yang kosong (pesannya dihapus) dapat pembuka lagi.
+        if (existing.messages.length === 0) {
+            existing.messages.push(makeOpening(sc));
+            existing.updated = Date.now();
+        }
         store.activeId = existing.id;
         saveStore();
         renderChat();
@@ -1505,6 +1539,7 @@ function startSceneChat(id) {
     let c = makeChat();
     c.title = sc.icon + " " + sc.name;
     c.scene = id;
+    c.messages.push(makeOpening(sc));
     store.chats.push(c);
     store.activeId = c.id;
     saveStore();

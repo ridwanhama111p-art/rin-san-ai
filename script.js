@@ -2316,13 +2316,14 @@ function moodToExpression(mood) {
     return MOOD_EXPR[mood] || "neutral";
 }
 // v2.5.1: file VRM diekspor dalam pose T (lengan lurus ke samping).
-// Turunkan lengan ke pose santai (A-pose) supaya tidak kaku.
+// Turunkan lengan ke pose santai. v2.5.2: 1.25 rad (~72°) supaya lengan
+// benar-benar di sisi badan, bukan A-pose lebar.
 function applyRestPose3D(vrm) {
     if (!vrm || !vrm.humanoid) return;
     let l = vrm.humanoid.getNormalizedBoneNode("leftUpperArm");
     let r = vrm.humanoid.getNormalizedBoneNode("rightUpperArm");
-    if (l) l.rotation.z = 0.6;
-    if (r) r.rotation.z = -0.6;
+    if (l) l.rotation.z = 1.25;
+    if (r) r.rotation.z = -1.25;
 }
 
 var S3 = {
@@ -2400,7 +2401,7 @@ async function ensureStage3D() {
         container.innerHTML = "";
         container.appendChild(renderer.domElement);
         let scene = new THREE.Scene();
-        let camera = new THREE.PerspectiveCamera(32, (container.clientWidth || 300) / (container.clientHeight || 400), 0.1, 20);
+        let camera = new THREE.PerspectiveCamera(26, (container.clientWidth || 300) / (container.clientHeight || 400), 0.1, 20);
         scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7a9e, 1.2));
         let dir = new THREE.DirectionalLight(0xffffff, 1.5);
         dir.position.set(1, 2, 2);
@@ -2416,11 +2417,12 @@ async function ensureStage3D() {
         scene.add(vrm.scene);
         scene.updateMatrixWorld(true);
         // Frame setengah badan dari posisi kepala (pinggang ke atas).
+        // v2.5.2: framing lebih rapat (rambut ±0.12, puncak kepala 1.38).
         let head = vrm.humanoid.getNormalizedBoneNode("head");
         let hp = new THREE.Vector3();
         head.getWorldPosition(hp);
-        camera.position.set(0, hp.y + 0.05, 1.4);
-        camera.lookAt(0, hp.y - 0.12, 0);
+        camera.position.set(0, hp.y, 1.35);
+        camera.lookAt(0, hp.y - 0.065, 0);
         S3.vrm = vrm; S3.renderer = renderer; S3.scene = scene;
         S3.camera = camera; S3.THREE = THREE;
         // Seret untuk memutar model.

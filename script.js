@@ -1606,6 +1606,7 @@ function updateHeaderMood(animate) {
     if (sub) {
         sub.textContent = (chat && chat.mood) ? "Suasana hati: " + faceInfo(mood).label : "semoga suka";
     }
+    applyMood3D(); // v2.5: ekspresi 3D ikut mood
 }
 function pCard(title) {
     let c = document.createElement("div");
@@ -2151,13 +2152,16 @@ function speakRin(text, msgId) {
     if (v) u.voice = v;
     speakingMsgId = msgId || null;
     markSpeakingButtons();
+    u.onstart = function () { setSpeaking3D(true); }; // v2.5: bibir 3D ikut bicara
     u.onend = function () {
+        setSpeaking3D(false);
         if (speakingMsgId === msgId) {
             speakingMsgId = null;
             markSpeakingButtons();
         }
     };
     u.onerror = function () {
+        setSpeaking3D(false);
         if (speakingMsgId === msgId) {
             speakingMsgId = null;
             markSpeakingButtons();
@@ -2166,11 +2170,13 @@ function speakRin(text, msgId) {
     try {
         speechSynthesis.speak(u);
     } catch (e) {
+        setSpeaking3D(false);
         speakingMsgId = null;
         markSpeakingButtons();
     }
 }
 function stopSpeaking() {
+    setSpeaking3D(false); // v2.5: bibir 3D berhenti
     if (typeof speechSynthesis !== "undefined" && speechSynthesis.cancel) {
         try { speechSynthesis.cancel(); } catch (e) {}
     }
@@ -2291,6 +2297,205 @@ on("fileInput", "change", async function () {
         removeImage();
     }
 });
+
+/* =================================================================
+   18. Rin 3D (v2.5) — model VRM setengah badan di panggung 3D
+   ================================================================
+   Library (three.js + @pixiv/three-vrm) dimuat malas dari CDN hanya
+   saat panggung pertama dibuka, jadi chat biasa tidak melambat.
+   Model: rin-3d.vrm (Scarlet III School Ver, rambut diwarnai ungu Rin).
+   Gerak: napas idle, kedip, ekspresi ikut mood, bibir ikut suara TTS.
+   Render hanya jalan saat panggung terbuka (hemat baterai). */
+
+const MOOD_EXPR = {
+    senang: "happy", kesal: "angry", santai: "relaxed", dingin: "neutral",
+    malu: "happy", ngambek: "angry", ngantuk: "relaxed", salting: "surprised",
+    bingung: "surprised", panik: "surprised", serius: "neutral", jahil: "happy"
+};
+function moodToExpression(mood) {
+    return MOOD_EXPR[mood] || "neutral";
+}
+
+var S3 = {
+    open: false,
+    ready: false,      // three.js + three-vrm berhasil dimuat
+    loading: false,
+    vrm: null,
+    speaking: false,
+    renderer: null, scene: null, camera: null, clock: null, THREE: null,
+    raf: 0, nextBlink: 0, blinkUntil: 0, mouthUntil: 0,
+    dragX: null, dragRotY: 0
+};
+function s3el(id) { return (typeof document !== "undefined") ? document.getElementById(id) : null; }
+function s3status(text) {
+    let el = s3el("stage3dStatus");
+    if (el) el.textContent = text || "";
+}
+function setSpeaking3D(on) {
+    S3.speaking = !!on;
+    if (!on) s3mouth("", 0);
+}
+function s3expr(name, value) {
+    if (!S3.vrm || !S3.vrm.expressionManager) return;
+    try { S3.vrm.expressionManager.setValue(name, value); } catch (e) {}
+}
+function s3mouth(shape, value) {
+    ["aa", "ih", "ou", "ee", "oh"].forEach(function (s) {
+        s3expr(s, s === shape ? value : 0);
+    });
+}
+function applyMood3D() {
+    let chat = (typeof getActive === "function") ? getActive() : null;
+    let mood = (chat && chat.mood) || "santai";
+    let label = s3el("stage3dMood");
+    if (label) {
+        try { label.textContent = "Suasana hati: " + faceInfo(mood).label; } catch (e) {}
+    }
+    if (!S3.vrm) return;
+    ["happy", "angry", "sad", "relaxed", "surprised", "neutral"].forEach(function (p) {
+        s3expr(p, p === moodToExpression(mood) ? 1 : 0);
+    });
+}
+function openStage3D() {
+    let stage = s3el("stage3d");
+    if (!stage) return;
+    stage.classList.add("show");
+    S3.open = true;
+    toggleSidebar(false);
+    applyMood3D();
+    if (!S3.ready && !S3.loading) ensureStage3D();
+    else if (S3.ready) startStageLoop();
+}
+function closeStage3D() {
+    S3.open = false;
+    stopStageLoop();
+    let stage = s3el("stage3d");
+    if (stage) stage.classList.remove("show");
+}
+async function ensureStage3D() {
+    S3.loading = true;
+    s3status("Memuat Rin 3D…");
+    try {
+        if (typeof window === "undefined" || typeof window.WebGLRenderingContext === "undefined") {
+            throw new Error("WebGL tidak tersedia");
+        }
+        let THREE = await import("three");
+        let VRM = await import("@pixiv/three-vrm");
+        let GLTFLoaderMod = await import("three/addons/loaders/GLTFLoader.js");
+        let container = s3el("stage3dCanvas");
+        if (!container) throw new Error("wadah panggung tidak ada");
+        let renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(container.clientWidth || 300, container.clientHeight || 400);
+        container.innerHTML = "";
+        container.appendChild(renderer.domElement);
+        let scene = new THREE.Scene();
+        let camera = new THREE.PerspectiveCamera(30, (container.clientWidth || 300) / (container.clientHeight || 400), 0.1, 20);
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7a9e, 1.2));
+        let dir = new THREE.DirectionalLight(0xffffff, 1.5);
+        dir.position.set(1, 2, 2);
+        scene.add(dir);
+        let loader = new GLTFLoaderMod.GLTFLoader();
+        loader.register(function (parser) { return new VRM.VRMLoaderPlugin(parser); });
+        let gltf = await loader.loadAsync("rin-3d.vrm");
+        let vrm = gltf.userData.vrm;
+        if (!vrm) throw new Error("bukan model VRM");
+        scene.add(vrm.scene);
+        scene.updateMatrixWorld(true);
+        // Frame setengah badan dari posisi kepala (pinggang ke atas).
+        let head = vrm.humanoid.getNormalizedBoneNode("head");
+        let hp = new THREE.Vector3();
+        head.getWorldPosition(hp);
+        camera.position.set(0, hp.y + 0.03, 1.05);
+        camera.lookAt(0, hp.y - 0.14, 0);
+        S3.vrm = vrm; S3.renderer = renderer; S3.scene = scene;
+        S3.camera = camera; S3.THREE = THREE;
+        // Seret untuk memutar model.
+        let el = renderer.domElement;
+        el.style.touchAction = "none";
+        el.addEventListener("pointerdown", function (e) {
+            S3.dragX = e.clientX; S3.dragRotY = vrm.scene.rotation.y;
+            try { el.setPointerCapture(e.pointerId); } catch (err) {}
+        });
+        el.addEventListener("pointermove", function (e) {
+            if (S3.dragX === null) return;
+            vrm.scene.rotation.y = S3.dragRotY + (e.clientX - S3.dragX) * 0.006;
+        });
+        ["pointerup", "pointercancel"].forEach(function (ev) {
+            el.addEventListener(ev, function () { S3.dragX = null; });
+        });
+        if (typeof window !== "undefined" && window.addEventListener) {
+            window.addEventListener("resize", function () {
+                if (!S3.open || !S3.renderer || !S3.camera) return;
+                let c = s3el("stage3dCanvas");
+                if (!c || !c.clientWidth || !c.clientHeight) return;
+                S3.camera.aspect = c.clientWidth / c.clientHeight;
+                S3.camera.updateProjectionMatrix();
+                S3.renderer.setSize(c.clientWidth, c.clientHeight);
+            });
+        }
+        S3.loading = false;
+        S3.ready = true;
+        s3status("");
+        applyMood3D();
+        startStageLoop();
+    } catch (e) {
+        S3.loading = false;
+        s3status("Rin 3D tidak bisa dimuat di perangkat ini. Coba lagi nanti ya.");
+        showToast("Hmph! Rin 3D gagal dimuat");
+    }
+}
+function startStageLoop() {
+    if (!S3.ready || !S3.open || S3.raf) return;
+    if (!S3.clock) S3.clock = new S3.THREE.Clock();
+    S3.nextBlink = performance.now() / 1000 + 2;
+    let tick = function () {
+        if (!S3.open) return;
+        S3.raf = requestAnimationFrame(tick);
+        let dt = Math.min(S3.clock.getDelta(), 0.05);
+        let t = S3.clock.elapsedTime;
+        let vrm = S3.vrm;
+        if (!vrm) return;
+        // Napas idle + goyang halus.
+        let spine = vrm.humanoid.getNormalizedBoneNode("spine");
+        if (spine) spine.rotation.x = 0.04 + Math.sin(t * 1.2) * 0.015;
+        let chest = vrm.humanoid.getNormalizedBoneNode("chest");
+        if (chest) chest.rotation.x = Math.sin(t * 1.2 + 0.4) * 0.012;
+        let neck = vrm.humanoid.getNormalizedBoneNode("neck");
+        if (neck) neck.rotation.y = Math.sin(t * 0.5) * 0.05;
+        // Kedip tiap 2-5 detik.
+        let now = performance.now() / 1000;
+        if (now >= S3.nextBlink) {
+            s3expr("blink", 1);
+            S3.blinkUntil = now + 0.12;
+            S3.nextBlink = now + 2 + Math.random() * 3;
+        }
+        if (S3.blinkUntil && now >= S3.blinkUntil) {
+            s3expr("blink", 0);
+            S3.blinkUntil = 0;
+        }
+        // Gerak bibir saat Rin bersuara (simulasi, bukan dari audio).
+        if (S3.speaking) {
+            if (now >= S3.mouthUntil) {
+                let shapes = ["aa", "ih", "ou", "ee", "oh"];
+                let s = shapes[Math.floor(Math.random() * shapes.length)];
+                s3mouth(s, 0.5 + Math.random() * 0.4);
+                S3.mouthUntil = now + 0.09;
+            }
+        } else {
+            s3mouth("", 0);
+        }
+        if (vrm.springBoneManager) vrm.springBoneManager.update(dt);
+        vrm.update(dt);
+        S3.renderer.render(S3.scene, S3.camera);
+    };
+    tick();
+}
+function stopStageLoop() {
+    if (S3.raf) cancelAnimationFrame(S3.raf);
+    S3.raf = 0;
+    if (S3.vrm) s3mouth("", 0);
+}
 
 /* =================================================================
    17. Init (sekali saja, di akhir file)

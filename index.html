@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rin-san AI</title>
     <link rel="stylesheet" href="Style.css">
+    <!-- v2.5: peta impor untuk Rin 3D (three.js + @pixiv/three-vrm dari CDN).
+         Tidak ada yang diunduh sampai panggung 3D pertama dibuka. -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.3.4/lib/three-vrm.module.js"
+        }
+    }
+    </script>
 </head>
 
 <body>
@@ -68,6 +79,7 @@
     </div>
 
     <button class="new-chat-btn" onclick="newChat()">✏️ Obrolan baru</button>
+    <button class="new-chat-btn" onclick="openStage3D()">🎥 Rin 3D</button>
 </div>
 
 <div id="settingsOverlay" class="sidebar-overlay" onclick="toggleSettings()"></div>
@@ -212,6 +224,17 @@
     </div>
   </div>
   
+<!-- v2.5: panggung Rin 3D (model VRM setengah badan, gerak) -->
+<div id="stage3d" class="stage3d">
+    <div class="stage3d-top">
+        <span id="stage3dMood" class="stage3d-mood"></span>
+        <button class="stage3d-close" onclick="closeStage3D()">✕</button>
+    </div>
+    <div id="stage3dCanvas" class="stage3d-canvas"></div>
+    <div id="stage3dStatus" class="stage3d-status"></div>
+    <div class="stage3d-hint">Seret untuk memutar • Tutup untuk kembali ngobrol</div>
+</div>
+
 <script src="script.js"></script>
 
 </body>

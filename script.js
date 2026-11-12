@@ -2315,11 +2315,21 @@ const MOOD_EXPR = {
 function moodToExpression(mood) {
     return MOOD_EXPR[mood] || "neutral";
 }
+// v2.5.1: file VRM diekspor dalam pose T (lengan lurus ke samping).
+// Turunkan lengan ke pose santai (A-pose) supaya tidak kaku.
+function applyRestPose3D(vrm) {
+    if (!vrm || !vrm.humanoid) return;
+    let l = vrm.humanoid.getNormalizedBoneNode("leftUpperArm");
+    let r = vrm.humanoid.getNormalizedBoneNode("rightUpperArm");
+    if (l) l.rotation.z = 0.6;
+    if (r) r.rotation.z = -0.6;
+}
 
 var S3 = {
     open: false,
     ready: false,      // three.js + three-vrm berhasil dimuat
     loading: false,
+    loopError: false,  // v2.5.1: error animasi pertama kali, ditampilkan di status
     vrm: null,
     speaking: false,
     renderer: null, scene: null, camera: null, clock: null, THREE: null,
@@ -2390,7 +2400,7 @@ async function ensureStage3D() {
         container.innerHTML = "";
         container.appendChild(renderer.domElement);
         let scene = new THREE.Scene();
-        let camera = new THREE.PerspectiveCamera(30, (container.clientWidth || 300) / (container.clientHeight || 400), 0.1, 20);
+        let camera = new THREE.PerspectiveCamera(32, (container.clientWidth || 300) / (container.clientHeight || 400), 0.1, 20);
         scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7a9e, 1.2));
         let dir = new THREE.DirectionalLight(0xffffff, 1.5);
         dir.position.set(1, 2, 2);
@@ -2400,14 +2410,17 @@ async function ensureStage3D() {
         let gltf = await loader.loadAsync("rin-3d.vrm");
         let vrm = gltf.userData.vrm;
         if (!vrm) throw new Error("bukan model VRM");
+        // v2.5.1: model VRM 0.0 menghadap -Z, putar 180° supaya menghadap kamera.
+        VRM.VRMUtils.rotateVRM0(vrm);
+        applyRestPose3D(vrm);
         scene.add(vrm.scene);
         scene.updateMatrixWorld(true);
         // Frame setengah badan dari posisi kepala (pinggang ke atas).
         let head = vrm.humanoid.getNormalizedBoneNode("head");
         let hp = new THREE.Vector3();
         head.getWorldPosition(hp);
-        camera.position.set(0, hp.y + 0.03, 1.05);
-        camera.lookAt(0, hp.y - 0.14, 0);
+        camera.position.set(0, hp.y + 0.05, 1.4);
+        camera.lookAt(0, hp.y - 0.12, 0);
         S3.vrm = vrm; S3.renderer = renderer; S3.scene = scene;
         S3.camera = camera; S3.THREE = THREE;
         // Seret untuk memutar model.
@@ -2452,22 +2465,27 @@ function startStageLoop() {
     let tick = function () {
         if (!S3.open) return;
         S3.raf = requestAnimationFrame(tick);
+        try {
         let dt = Math.min(S3.clock.getDelta(), 0.05);
         let t = S3.clock.elapsedTime;
         let vrm = S3.vrm;
         if (!vrm) return;
+        applyRestPose3D(vrm); // v2.5.1: jaga pose santai tetap menempel
         // Napas idle + goyang halus.
         let spine = vrm.humanoid.getNormalizedBoneNode("spine");
-        if (spine) spine.rotation.x = 0.04 + Math.sin(t * 1.2) * 0.015;
+        if (spine) spine.rotation.x = 0.04 + Math.sin(t * 1.2) * 0.02;
         let chest = vrm.humanoid.getNormalizedBoneNode("chest");
-        if (chest) chest.rotation.x = Math.sin(t * 1.2 + 0.4) * 0.012;
+        if (chest) chest.rotation.x = Math.sin(t * 1.2 + 0.4) * 0.02;
         let neck = vrm.humanoid.getNormalizedBoneNode("neck");
-        if (neck) neck.rotation.y = Math.sin(t * 0.5) * 0.05;
+        if (neck) {
+            neck.rotation.y = Math.sin(t * 0.5) * 0.08;
+            neck.rotation.z = Math.sin(t * 0.7) * 0.03;
+        }
         // Kedip tiap 2-5 detik.
         let now = performance.now() / 1000;
         if (now >= S3.nextBlink) {
             s3expr("blink", 1);
-            S3.blinkUntil = now + 0.12;
+            S3.blinkUntil = now + 0.15;
             S3.nextBlink = now + 2 + Math.random() * 3;
         }
         if (S3.blinkUntil && now >= S3.blinkUntil) {
@@ -2488,6 +2506,13 @@ function startStageLoop() {
         if (vrm.springBoneManager) vrm.springBoneManager.update(dt);
         vrm.update(dt);
         S3.renderer.render(S3.scene, S3.camera);
+        } catch (e) {
+            // v2.5.1: jangan diam-diam membeku — tampilkan error sekali.
+            if (!S3.loopError) {
+                S3.loopError = true;
+                s3status("Animasi 3D berhenti: " + (e && e.message ? e.message : e));
+            }
+        }
     };
     tick();
 }

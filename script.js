@@ -2319,6 +2319,10 @@ const MOOD_EXPR = {
     malu: "happy", ngambek: "angry", ngantuk: "relaxed", salting: "surprised",
     bingung: "surprised", panik: "surprised", serius: "neutral", jahil: "happy"
 };
+// v2.8.1: semua nama ekspresi yang dipakai, termasuk "Surprised" (huruf
+// besar) — grup Surprised di file VRM ber-preset "unknown" sehingga
+// three-vrm mendaftarkannya dengan nama grupnya, bukan "surprised".
+var S3_EXPRS = ["happy", "angry", "sad", "relaxed", "surprised", "neutral", "Surprised"];
 function moodToExpression(mood) {
     return MOOD_EXPR[mood] || "neutral";
 }
@@ -2372,7 +2376,7 @@ function applyMood3D() {
         try { label.textContent = "Suasana hati: " + faceInfo(mood).label; } catch (e) {}
     }
     if (!S3.vrm) return;
-    ["happy", "angry", "sad", "relaxed", "surprised", "neutral"].forEach(function (p) {
+    S3_EXPRS.forEach(function (p) {
         s3expr(p, p === moodToExpression(mood) ? 1 : 0);
     });
 }
@@ -2394,10 +2398,12 @@ function openStage3D() {
    Reaksi: ekspresi berubah 1,8 dtk, kepala menunduk/terkejut sedikit,
    kalimat Rin muncul di panggung, HP bergetar pelan (Android). */
 var TOUCH_REACTIONS = {
-    head: { expr: "happy", lines: ["Hmph... boleh lah, dikit aja.", "Ehehe... elusanmu lumayan juga.", "H-hmph! Bukan berarti aku suka ya..."] },
-    face: { expr: "surprised", lines: ["A-apa sih?! Jangan colek-colek!", "Hmph! Pipiku bukan buat dicolek!"] },
-    body: { expr: "surprised", lines: ["H-hei! Jangan sentuh sembarangan!", "A-apa yang kamu lakukan?!"] },
-    legs: { expr: "surprised", lines: ["H-hei! Jangan sentuh rokku!", "I-ih! Jangan di situ!"] }
+    // v2.8.1: senyum = Joy ("happy") + Fun ("relaxed") supaya jelas
+    // kelihatan; kaget = "Surprised" (huruf besar, lihat S3_EXPRS).
+    head: { exprs: ["happy", "relaxed"], lines: ["Hmph... boleh lah, dikit aja.", "Ehehe... elusanmu lumayan juga.", "H-hmph! Bukan berarti aku suka ya..."] },
+    face: { exprs: ["Surprised"], lines: ["A-apa sih?! Jangan colek-colek!", "Hmph! Pipiku bukan buat dicolek!"] },
+    body: { exprs: ["Surprised"], lines: ["H-hei! Jangan sentuh sembarangan!", "A-apa yang kamu lakukan?!"] },
+    legs: { exprs: ["Surprised"], lines: ["H-hei! Jangan sentuh rokku!", "I-ih! Jangan di situ!"] }
 };
 function touchReaction(part) { return TOUCH_REACTIONS[part] || null; }
 function touchPartFromName(name) {
@@ -2432,10 +2438,10 @@ function isTapGesture(down, up) {
     if (!down || !up) return false;
     return Math.abs(up.x - down.x) <= 10 && Math.abs(up.y - down.y) <= 10 && (up.t - down.t) <= 400;
 }
-function applyTouchExpr3D(expr) {
+function applyTouchExpr3D(exprs) {
     if (!S3.vrm) return;
-    ["happy", "angry", "sad", "relaxed", "surprised", "neutral"].forEach(function (p) {
-        s3expr(p, p === expr ? 1 : 0);
+    S3_EXPRS.forEach(function (p) {
+        s3expr(p, exprs.indexOf(p) !== -1 ? 1 : 0);
     });
 }
 function s3say(text) {
@@ -2444,7 +2450,15 @@ function s3say(text) {
     el.textContent = text || "";
     el.classList.add("show");
     clearTimeout(s3say.timer);
-    s3say.timer = setTimeout(function () { el.classList.remove("show"); }, 2500);
+    clearTimeout(s3say.timer2);
+    s3say.timer = setTimeout(function () {
+        el.classList.remove("show");
+        // v2.8.1: kosongkan teks setelah memudar, supaya gelembung
+        // (in-flow) tidak menyisakan ruang kosong di atas model.
+        s3say.timer2 = setTimeout(function () {
+            if (!el.classList.contains("show")) el.textContent = "";
+        }, 300);
+    }, 2500);
 }
 function handleTouch3D(e) {
     if (!S3.vrm || !S3.THREE || !S3.camera || !S3.renderer) return;
@@ -2463,7 +2477,7 @@ function handleTouch3D(e) {
     let react = touchReaction(part);
     if (!react) return;
     let line = react.lines[Math.floor(Math.random() * react.lines.length)];
-    applyTouchExpr3D(react.expr);
+    applyTouchExpr3D(react.exprs);
     S3.touchKind = part;
     S3.touchActive = true;
     S3.touchUntil = performance.now() / 1000 + 1.8;
@@ -2622,6 +2636,9 @@ function startStageLoop() {
                 s3mouth(s, 0.5 + Math.random() * 0.4);
                 S3.mouthUntil = now + 0.09;
             }
+        } else if (S3.touchActive && S3.touchKind !== "head") {
+            // v2.8.1: mulut terbuka (O) supaya muka kaget jelas kelihatan.
+            s3mouth("oh", 0.7);
         } else {
             s3mouth("", 0);
         }

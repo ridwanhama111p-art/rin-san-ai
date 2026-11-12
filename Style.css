@@ -730,19 +730,21 @@ button:active {
     display: none;
 }
 
-/* v2.8: kalimat reaksi Rin saat disentuh */
+/* v2.8.1: kalimat reaksi Rin saat disentuh — di atas model (in-flow),
+   supaya tidak menutupi rok atau terpotong tepi bawah. */
 .stage3d-touch {
-    position: absolute;
-    left: 16px;
-    right: 16px;
-    bottom: 56px;
     text-align: center;
     font-size: 15px;
     font-style: italic;
     color: var(--accent);
+    padding: 2px 16px 6px;
     opacity: 0;
     transition: opacity 0.25s;
     pointer-events: none;
+}
+
+.stage3d-touch:empty {
+    display: none;
 }
 
 .stage3d-touch.show {

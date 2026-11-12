@@ -2342,7 +2342,9 @@ var S3 = {
     speaking: false,
     renderer: null, scene: null, camera: null, clock: null, THREE: null,
     raf: 0, nextBlink: 0, blinkUntil: 0, mouthUntil: 0,
-    dragX: null, dragRotY: 0
+    dragX: null, dragRotY: 0,
+    tapX: null, tapY: null, tapT: 0,           // v2.8: ketuk (bukan seret)
+    touchUntil: 0, touchActive: false, touchKind: null // v2.8: reaksi sentuhan
 };
 function s3el(id) { return (typeof document !== "undefined") ? document.getElementById(id) : null; }
 function s3status(text) {
@@ -2383,6 +2385,90 @@ function openStage3D() {
     applyMood3D();
     if (!S3.ready && !S3.loading) ensureStage3D();
     else if (S3.ready) startStageLoop();
+}
+/* =================================================================
+   18b. Rin 3D bisa disentuh (v2.8) — ketuk model, Rin bereaksi.
+   Ketuk dibedakan dari seret: gerak <= 10 px dan durasi <= 400 ms.
+   Raycast ke model VRM, bagian yang kena menentukan reaksi:
+   kepala (elus) -> senang, pipi -> kaget, badan/rok -> kaget.
+   Reaksi: ekspresi berubah 1,8 dtk, kepala menunduk/terkejut sedikit,
+   kalimat Rin muncul di panggung, HP bergetar pelan (Android). */
+var TOUCH_REACTIONS = {
+    head: { expr: "happy", lines: ["Hmph... boleh lah, dikit aja.", "Ehehe... elusanmu lumayan juga.", "H-hmph! Bukan berarti aku suka ya..."] },
+    face: { expr: "surprised", lines: ["A-apa sih?! Jangan colek-colek!", "Hmph! Pipiku bukan buat dicolek!"] },
+    body: { expr: "surprised", lines: ["H-hei! Jangan sentuh sembarangan!", "A-apa yang kamu lakukan?!"] },
+    legs: { expr: "surprised", lines: ["H-hei! Jangan sentuh rokku!", "I-ih! Jangan di situ!"] }
+};
+function touchReaction(part) { return TOUCH_REACTIONS[part] || null; }
+function touchPartFromName(name) {
+    if (!name) return null;
+    let n = String(name).toLowerCase();
+    if (n.indexOf("hair") !== -1) return "head";
+    if (n.indexOf("face") !== -1 || n.indexOf("eye") !== -1 || n.indexOf("brow") !== -1 || n.indexOf("mouth") !== -1 || n.indexOf("nose") !== -1) return "face";
+    if (n.indexOf("tops") !== -1 || n.indexOf("body") !== -1 || n.indexOf("chest") !== -1 || n.indexOf("arm") !== -1) return "body";
+    if (n.indexOf("bottoms") !== -1 || n.indexOf("shoes") !== -1 || n.indexOf("skirt") !== -1 || n.indexOf("leg") !== -1) return "legs";
+    return null;
+}
+function touchPartFromObject(obj) {
+    let o = obj;
+    while (o) {
+        let p = touchPartFromName(o.name);
+        if (p) return p;
+        o = o.parent;
+    }
+    return null;
+}
+// Cadangan kalau nama mesh tidak dikenali: dari tinggi titik kena.
+// Kepala 1,175; puncak rambut 1,38; pinggang 0,783.
+function touchPartFromY(y) {
+    if (typeof y !== "number" || isNaN(y)) return null;
+    if (y >= 1.28) return "head";
+    if (y >= 1.02) return "face";
+    if (y >= 0.60) return "body";
+    if (y >= 0) return "legs";
+    return null;
+}
+function isTapGesture(down, up) {
+    if (!down || !up) return false;
+    return Math.abs(up.x - down.x) <= 10 && Math.abs(up.y - down.y) <= 10 && (up.t - down.t) <= 400;
+}
+function applyTouchExpr3D(expr) {
+    if (!S3.vrm) return;
+    ["happy", "angry", "sad", "relaxed", "surprised", "neutral"].forEach(function (p) {
+        s3expr(p, p === expr ? 1 : 0);
+    });
+}
+function s3say(text) {
+    let el = s3el("stage3dTouch");
+    if (!el) return;
+    el.textContent = text || "";
+    el.classList.add("show");
+    clearTimeout(s3say.timer);
+    s3say.timer = setTimeout(function () { el.classList.remove("show"); }, 2500);
+}
+function handleTouch3D(e) {
+    if (!S3.vrm || !S3.THREE || !S3.camera || !S3.renderer) return;
+    let el = S3.renderer.domElement;
+    let r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    let nx = ((e.clientX - r.left) / r.width) * 2 - 1;
+    let ny = -((e.clientY - r.top) / r.height) * 2 + 1;
+    let rc = new S3.THREE.Raycaster();
+    rc.setFromCamera({ x: nx, y: ny }, S3.camera);
+    let hits = rc.intersectObjects(S3.vrm.scene.children, true);
+    if (!hits.length) return;
+    let hit = hits[0];
+    let part = touchPartFromObject(hit.object) || touchPartFromY(hit.point.y);
+    if (!part) return;
+    let react = touchReaction(part);
+    if (!react) return;
+    let line = react.lines[Math.floor(Math.random() * react.lines.length)];
+    applyTouchExpr3D(react.expr);
+    S3.touchKind = part;
+    S3.touchActive = true;
+    S3.touchUntil = performance.now() / 1000 + 1.8;
+    s3say(line);
+    try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15); } catch (err) {}
 }
 function closeStage3D() {
     S3.open = false;
@@ -2432,19 +2518,28 @@ async function ensureStage3D() {
         camera.lookAt(0, hp.y - 0.065, 0);
         S3.vrm = vrm; S3.renderer = renderer; S3.scene = scene;
         S3.camera = camera; S3.THREE = THREE;
-        // Seret untuk memutar model.
+        // Seret untuk memutar model; ketuk (tanpa seret) = sentuhan (v2.8).
         let el = renderer.domElement;
         el.style.touchAction = "none";
         el.addEventListener("pointerdown", function (e) {
             S3.dragX = e.clientX; S3.dragRotY = vrm.scene.rotation.y;
+            S3.tapX = e.clientX; S3.tapY = e.clientY; S3.tapT = performance.now();
             try { el.setPointerCapture(e.pointerId); } catch (err) {}
         });
         el.addEventListener("pointermove", function (e) {
             if (S3.dragX === null) return;
+            if (S3.tapX !== null && (Math.abs(e.clientX - S3.tapX) > 10 || Math.abs(e.clientY - S3.tapY) > 10)) S3.tapX = null;
             vrm.scene.rotation.y = S3.dragRotY + (e.clientX - S3.dragX) * 0.006;
         });
         ["pointerup", "pointercancel"].forEach(function (ev) {
-            el.addEventListener(ev, function () { S3.dragX = null; });
+            el.addEventListener(ev, function (e) {
+                if (ev === "pointerup" && S3.tapX !== null) {
+                    let up = { x: e.clientX, y: e.clientY, t: performance.now() };
+                    let down = { x: S3.tapX, y: S3.tapY, t: S3.tapT };
+                    if (isTapGesture(down, up)) handleTouch3D(e);
+                }
+                S3.dragX = null; S3.tapX = null;
+            });
         });
         if (typeof window !== "undefined" && window.addEventListener) {
             window.addEventListener("resize", function () {
@@ -2500,6 +2595,24 @@ function startStageLoop() {
         if (S3.blinkUntil && now >= S3.blinkUntil) {
             s3expr("blink", 0);
             S3.blinkUntil = 0;
+        }
+        // v2.8: animasi reaksi sentuhan, lalu kembali ke ekspresi mood chat.
+        if (S3.touchActive) {
+            if (now >= S3.touchUntil) {
+                S3.touchActive = false;
+                vrm.scene.position.y = 0;
+                if (neck) neck.rotation.x = 0;
+                applyMood3D();
+            } else {
+                let p = 1 - (S3.touchUntil - now) / 1.8;
+                let w = Math.sin(Math.min(Math.max(p, 0), 1) * Math.PI);
+                if (S3.touchKind === "head") {
+                    if (neck) { neck.rotation.z += 0.12 * w; neck.rotation.x = -0.06 * w; }
+                } else {
+                    if (spine) spine.rotation.x += 0.05 * w;
+                    vrm.scene.position.y = 0.015 * w;
+                }
+            }
         }
         // Gerak bibir saat Rin bersuara (simulasi, bukan dari audio).
         if (S3.speaking) {

@@ -730,6 +730,25 @@ button:active {
     display: none;
 }
 
+/* v2.8: kalimat reaksi Rin saat disentuh */
+.stage3d-touch {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 56px;
+    text-align: center;
+    font-size: 15px;
+    font-style: italic;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity 0.25s;
+    pointer-events: none;
+}
+
+.stage3d-touch.show {
+    opacity: 1;
+}
+
 .stage3d-hint {
     text-align: center;
     font-size: 12px;

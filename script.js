@@ -1702,6 +1702,13 @@ function renderProfile() {
         habits.appendChild(pList(prof.habits));
         body.appendChild(habits);
     }
+
+    // v2.7: tombol Rin 3D di bawah Kebiasaan (paling bawah profil).
+    let btn3d = document.createElement("button");
+    btn3d.className = "profile-3d-btn";
+    btn3d.textContent = "🎥 Rin 3D";
+    btn3d.onclick = openStage3D;
+    body.appendChild(btn3d);
 }
 function openProfile() {
     renderProfile();

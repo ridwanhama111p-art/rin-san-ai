@@ -1225,6 +1225,13 @@ button:active {
     gap: 16px;
 }
 
+/* v2.7: tombol Rin 3D di bawah Kebiasaan, paling bawah profil */
+.profile-3d-btn {
+    width: 100%;
+    padding: 14px;
+    font-size: 15px;
+}
+
 .p-card {
     background: var(--surface);
     border: 1px solid var(--border);

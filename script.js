@@ -65,6 +65,26 @@ const PRESETS = [
     { name: "Pemalu", text: "Kamu adalah Rin-san, gadis pemalu dan gugup. Sering terbata-bata (\"a-anu...\"), mudah tersipu, tapi tulus dan baik hati. Boleh pakai aksi seperti *menunduk malu*." },
     { name: "Kustom", text: null }
 ];
+/* v2.4-adegan: daftar adegan (roleplay). Prompt adegan ditempel ke
+   persona yang dikirim ke Worker (lihat getReply), jadi Rin ngobrol
+   dari suasana adegan itu tanpa perlu ubah Worker. */
+const SCENES = [
+    { id: "sekolah", icon: "🏫", name: "Di Sekolah", desc: "Teman sebangku di kelas, jam istirahat",
+      prompt: "Adegan: kalian berdua di sekolah, di kelas saat jam istirahat. Rin adalah teman sebangkumu. Suasana kelas ramai, tapi obrolan kalian berdua terasa seperti dunia sendiri. Rin tetap tsundere seperti biasa, pura-pura cuek padahal senang diajak ngobrol." },
+    { id: "kafe", icon: "☕", name: "Di Kafe", desc: "Nongkrong bareng sepulang sekolah",
+      prompt: "Adegan: kalian berdua di kafe kecil sepulang sekolah. Rin duduk di seberang meja, menyeruput minuman favoritnya. Suasananya santai dan hangat, cocok buat ngobrol panjang." },
+    { id: "rumah", icon: "🏠", name: "Di Rumah", desc: "Santai di rumah, malam hari",
+      prompt: "Adegan: kalian berdua di rumah pada malam hari, suasana tenang dan nyaman. Rin lagi santai, mungkin sambil minum teh hangat. Ngobrolnya pelan dan hangat, seperti di rumah sendiri." },
+    { id: "perpus", icon: "📚", name: "Perpustakaan", desc: "Belajar bareng, jangan berisik",
+      prompt: "Adegan: kalian berdua di perpustakaan sekolah, belajar bareng. Harus bicara pelan-pelan biar tidak dimarahi pustakawan. Rin pura-pura fokus belajar padahal lebih sibuk memperhatikanmu." },
+    { id: "halte", icon: "🌧️", name: "Halte Hujan", desc: "Kehujanan di halte bus",
+      prompt: "Adegan: hujan deras, kalian berdua berteduh di halte bus menunggu hujan reda. Rin kedinginan tapi gengsi mengakuinya. Suasananya dingin, basah, dan romantis dengan caranya sendiri." },
+    { id: "festival", icon: "🎆", name: "Festival Sekolah", desc: "Stand kelas dan kembang api",
+      prompt: "Adegan: festival sekolah sedang berlangsung, ramai dan meriah. Rin menjaga stand kelas bersama kamu. Ada lampu-lampu, jajanan, dan nanti malam ada kembang api. Rin semangat tapi tetap gengsi kalau ketahuan senang." }
+];
+function sceneById(id) {
+    return SCENES.find(function (s) { return s.id === id; }) || null;
+}
 function extendPresets() {
     let extra = [
         {
@@ -1002,10 +1022,17 @@ async function getReply(text, image) {
 
     let chat = getActive();
     let p = (chat && chat.persona) ? chat.persona : persona;
+    // v2.4-adegan: kalau chat ini punya adegan, tempel suasana adegannya
+    // ke persona yang dikirim ke Worker, jadi Rin ngobrol dari adegan itu.
+    let personaText = p.text;
+    if (chat && chat.scene) {
+        let sc = sceneById(chat.scene);
+        if (sc) personaText += "\n\n[Adegan saat ini: " + sc.name + "]\n" + sc.prompt;
+    }
 
     let payload = JSON.stringify({
         messages: history,
-        persona: p.text,
+        persona: personaText,
         memoryOn: memoryOn,
         memory: memoryOn ? memories.map(function (m) { return m.text; }) : [],
         mood: (chat && chat.mood) || "santai",
@@ -1243,6 +1270,7 @@ function resetActiveChat() {
     chat.title = "Obrolan baru";
     chat.updated = Date.now();
     delete chat.persona;
+    delete chat.scene; // v2.4-adegan: chat yang direset bukan lagi chat adegan
     saveStore();
     renderChat();
     renderList();
@@ -1390,10 +1418,12 @@ function toggleSettings(open) {
 }
 function toggleAcc(which) {
     // v2: peta accordion — persona / memory / backup (suara & cadangan)
+    // v2.4-adegan: + scene
     let map = {
         persona: { body: "accPersona", head: "accPersonaHead" },
         memory: { body: "accMemory", head: "accMemoryHead" },
-        backup: { body: "accBackup", head: "accBackupHead" }
+        backup: { body: "accBackup", head: "accBackupHead" },
+        scene: { body: "accScene", head: "accSceneHead" }
     };
     let entry = map[which];
     if (!entry) return;
@@ -1416,8 +1446,72 @@ function toggleAcc(which) {
             renderMemory();
         } else if (which === "backup") {
             renderVoiceToggle();
+        } else if (which === "scene") {
+            renderScenes();
         }
     }
+}
+
+/* =================================================================
+   12b. Adegan (v2.4) — chat khusus per adegan, dipilih dari Settings
+   ================================================================ */
+
+function renderScenes() {
+    let box = $("sceneList");
+    if (!box) return;
+    box.innerHTML = "";
+    let active = getActive();
+    SCENES.forEach(function (sc) {
+        let b = document.createElement("button");
+        b.className = "scene-btn" + (active && active.scene === sc.id ? " active" : "");
+        let icon = document.createElement("span");
+        icon.className = "scene-icon";
+        icon.textContent = sc.icon;
+        let wrap = document.createElement("span");
+        wrap.className = "scene-text";
+        let name = document.createElement("span");
+        name.className = "scene-name";
+        name.textContent = sc.name;
+        let desc = document.createElement("span");
+        desc.className = "scene-desc";
+        desc.textContent = sc.desc;
+        wrap.appendChild(name);
+        wrap.appendChild(desc);
+        b.appendChild(icon);
+        b.appendChild(wrap);
+        b.onclick = function () { startSceneChat(sc.id); };
+        box.appendChild(b);
+    });
+}
+function startSceneChat(id) {
+    if (sending) {
+        showToast("Tunggu Rin-san selesai bales dulu ya");
+        return;
+    }
+    let sc = sceneById(id);
+    if (!sc) return;
+    // Satu chat khusus per adegan: kalau sudah ada, masuk ke chat itu.
+    let existing = store.chats.filter(function (c) { return c.scene === id; })
+        .sort(function (a, b) { return b.updated - a.updated; })[0];
+    if (existing) {
+        store.activeId = existing.id;
+        saveStore();
+        renderChat();
+        renderList();
+        toggleSettings(false);
+        showToast("🎬 Lanjut adegan " + sc.name);
+        return;
+    }
+    let c = makeChat();
+    c.title = sc.icon + " " + sc.name;
+    c.scene = id;
+    store.chats.push(c);
+    store.activeId = c.id;
+    saveStore();
+    renderChat();
+    renderList();
+    toggleSettings(false);
+    showToast("🎬 Adegan " + sc.name + " dimulai!");
 }
 
 /* =================================================================

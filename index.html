@@ -86,6 +86,14 @@
         <button class="acc-save" onclick="savePersona()">Simpan</button>
     </div>
 
+    <button id="accSceneHead" class="acc-head" onclick="toggleAcc('scene')">
+        <span>Adegan 🎬</span><span class="acc-arrow">&gt;</span>
+    </button>
+    <div id="accScene" class="acc-body">
+        <p class="backup-note">Pilih adegan, Rin bakal ngobrol dari suasana itu di chat khusus. Balasan Rin tetap pakai kepribadian yang aktif.</p>
+        <div id="sceneList" class="scene-list"></div>
+    </div>
+
     <button id="accMemoryHead" class="acc-head" onclick="toggleAcc('memory')">
         <span>Ingatan Rin 🧠</span><span class="acc-arrow">&gt;</span>
     </button>

@@ -2472,15 +2472,18 @@ function s3say(text) {
    DI BAWAH dagu, di leher) dan z cuma +0.028 dari kepala (di DALAM
    kepala) — makanya v2.8.2 tak terlihat sama sekali dan v2.8.3
    muncul sebagai blob pink di leher/kerah (screenshot Ridwan).
-   Posisi benar (dunia pasca-rotateVRM0): x ±0.04, y kepala +0.003
-   (= 1.178, di bawah mata, di atas mulut — v2.8.5: naik 0.008 dari
-   v2.8.4 karena di screenshot Ridwan blush masih sejajar mulut),
-   z kepala +0.085 (= +0.071 dunia, 0.006 di depan titik pipi paling
-   maju — v2.8.5: maju 0.013 dari v2.8.4 karena bagian dalam blush
-   masih tenggelam ke pipi) — lalu diubah ke ruang lokal kepala
-   dengan worldToLocal. Orientasi lingkaran diset ke kebalikan
-   kuaternion dunia kepala, jadi menghadap +Z dunia (ke kamera)
-   apa pun orientasi lokal tulangnya. */
+   Posisi benar (dunia pasca-rotateVRM0): x ±0.042, y kepala +0.035
+   (= 1.210, tepat di bawah mata — v2.8.6: naik 0.032 dari v2.8.5
+   karena ternyata MULUT ada di y 1.174, nyaris sama dengan kepala
+   (1.175), jadi blush v2.8.5 yang di 1.178 memang sejajar mulut;
+   MATA ada di y 1.235, bukan 1.187 seperti kiraan awal — keduanya
+   diukur dari morph target blend shape: verteks paling bergerak di
+   "A" (mulut) y 1.173..1.176, di "Blink" (mata) y 1.234..1.238),
+   z kepala +0.085 (= +0.071 dunia, 0.008 di depan titik pipi paling
+   maju di pita y 1.20..1.22, z -0.063) — lalu diubah ke ruang lokal
+   kepala dengan worldToLocal. Orientasi lingkaran diset ke
+   kebalikan kuaternion dunia kepala, jadi menghadap +Z dunia
+   (ke kamera) apa pun orientasi lokal tulangnya. */
 function createBlush3D() {
     if (!S3.vrm || !S3.THREE) return false;
     try {
@@ -2496,7 +2499,7 @@ function createBlush3D() {
             let geo = new S3.THREE.CircleGeometry(0.019, 24);
             let mat = new S3.THREE.MeshBasicMaterial({ color: 0xff8fab, transparent: true, opacity: 0, depthWrite: false });
             let m = new S3.THREE.Mesh(geo, mat);
-            let world = new S3.THREE.Vector3(hp.x + 0.04 * side, hp.y + 0.003, hp.z + 0.085);
+            let world = new S3.THREE.Vector3(hp.x + 0.042 * side, hp.y + 0.035, hp.z + 0.085);
             m.position.copy(head.worldToLocal(world));
             m.quaternion.copy(q);
             m.scale.set(1.25, 0.65, 1);

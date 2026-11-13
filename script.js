@@ -2462,14 +2462,19 @@ function s3say(text) {
         }, 300);
     }, 2500);
 }
-/* v2.8.3: pipi merah — dua elips pink semi-transparan menempel di
-   tulang kepala, jadi ikut gerak kepala. v2.8.2 menebak posisi dalam
-   ruang lokal kepala (-Z = depan) dan blush tidak pernah terlihat —
-   kemungkinan arah lokal tulang kepala tidak seperti dugaan, jadi
-   lingkaran jatuh di dalam kepala / membelakangi kamera. Perbaikan:
-   posisi pipi dihitung dari posisi DUNIA tulang kepala (setelah
-   rotateVRM0 wajah menghadap +Z dunia, kamera di z +1,35): pipi di
-   x ±0,045, y -0,045, z +0,028 dari pusat kepala, lalu diubah ke
+/* v2.8.4: pipi merah — dua elips pink semi-transparan menempel di
+   tulang kepala, jadi ikut gerak kepala. Posisi diukur dari geometri
+   wajah di file .vrm (analyze-blush.mjs), BUKAN tebakan:
+   tulang kepala di (0, 1.175, 0.014) model space, sumbu lokalnya
+   identitas; mesh wajah y 1.150..1.345 (dagu 1.150, mata 1.187),
+   permukaan pipi di (x ±0.04, y 1.17) ada di z -0.036..-0.055 model.
+   v2.8.2/v2.8.3 salah dua-duanya: y -0.045 dari kepala (= 1.130,
+   DI BAWAH dagu, di leher) dan z cuma +0.028 dari kepala (di DALAM
+   kepala) — makanya v2.8.2 tak terlihat sama sekali dan v2.8.3
+   muncul sebagai blob pink di leher/kerah (screenshot Ridwan).
+   Posisi benar (dunia pasca-rotateVRM0): x ±0.04, y kepala -0.005
+   (= 1.170, di bawah mata, di atas dagu), z kepala +0.072 (= +0.058
+   dunia, 0.003 di depan titik pipi paling maju) — lalu diubah ke
    ruang lokal kepala dengan worldToLocal. Orientasi lingkaran diset
    ke kebalikan kuaternion dunia kepala, jadi menghadap +Z dunia
    (ke kamera) apa pun orientasi lokal tulangnya. */
@@ -2485,13 +2490,13 @@ function createBlush3D() {
         q.invert();
         let mats = [];
         [-1, 1].forEach(function (side) {
-            let geo = new S3.THREE.CircleGeometry(0.022, 24);
+            let geo = new S3.THREE.CircleGeometry(0.019, 24);
             let mat = new S3.THREE.MeshBasicMaterial({ color: 0xff8fab, transparent: true, opacity: 0, depthWrite: false });
             let m = new S3.THREE.Mesh(geo, mat);
-            let world = new S3.THREE.Vector3(hp.x + 0.045 * side, hp.y - 0.045, hp.z + 0.028);
+            let world = new S3.THREE.Vector3(hp.x + 0.04 * side, hp.y - 0.005, hp.z + 0.072);
             m.position.copy(head.worldToLocal(world));
             m.quaternion.copy(q);
-            m.scale.set(1.3, 0.75, 1);
+            m.scale.set(1.25, 0.7, 1);
             head.add(m);
             mats.push(mat);
         });

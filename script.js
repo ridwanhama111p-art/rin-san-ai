@@ -2322,7 +2322,7 @@ const MOOD_EXPR = {
 // v2.8.1: semua nama ekspresi yang dipakai, termasuk "Surprised" (huruf
 // besar) — grup Surprised di file VRM ber-preset "unknown" sehingga
 // three-vrm mendaftarkannya dengan nama grupnya, bukan "surprised".
-var S3_EXPRS = ["happy", "angry", "sad", "relaxed", "surprised", "neutral", "Surprised"];
+var S3_EXPRS = ["happy", "angry", "sad", "relaxed", "surprised", "neutral", "Surprised", "blink"]; // v2.8.8: "blink" ikut dikelola supaya mata merem saat blush bisa dibersihkan saat revert
 function moodToExpression(mood) {
     return MOOD_EXPR[mood] || "neutral";
 }
@@ -2395,15 +2395,17 @@ function openStage3D() {
    18b. Rin 3D bisa disentuh (v2.8) — ketuk model, Rin bereaksi.
    Ketuk dibedakan dari seret: gerak <= 10 px dan durasi <= 400 ms.
    Raycast ke model VRM, bagian yang kena menentukan reaksi:
-   kepala (elus) -> senang, pipi -> kaget, badan/rok -> kaget.
+   kepala (elus) / pipi -> malu ala referensi Ridwan (mata merem,
+   alis manyun, mulut manyun) + pipi merah; badan/rok -> kaget.
    Reaksi: ekspresi berubah 1,8 dtk, kepala menunduk/terkejut sedikit,
    kalimat Rin muncul di panggung, HP bergetar pelan (Android). */
 var TOUCH_REACTIONS = {
-    // v2.8.1: senyum = Joy ("happy") + Fun ("relaxed") supaya jelas
-    // kelihatan; kaget = "Surprised" (huruf besar, lihat S3_EXPRS).
+    // v2.8.8: saat pipi merah, ekspresi = referensi Ridwan (cewek pirang
+    // manyun): mata merem ("blink") + alis manyun ("angry") + mulut
+    // manyun ("ou", ditahan di tick) — bukan lagi senyum/kaget.
     // v2.8.2: blush = pipi merah saat elus kepala & colek pipi.
-    head: { exprs: ["happy", "relaxed"], blush: true, lines: ["Hmph... boleh lah, dikit aja.", "Ehehe... elusanmu lumayan juga.", "H-hmph! Bukan berarti aku suka ya...", "M-muka aku panas... jangan diliatin terus!"] },
-    face: { exprs: ["Surprised"], blush: true, lines: ["A-apa sih?! Jangan colek-colek!", "Hmph! Pipiku bukan buat dicolek!", "I-ih, pipiku panas... salahmu tuh!"] },
+    head: { exprs: ["angry", "blink"], blush: true, lines: ["Hmph... boleh lah, dikit aja.", "Ehehe... elusanmu lumayan juga.", "H-hmph! Bukan berarti aku suka ya...", "M-muka aku panas... jangan diliatin terus!"] },
+    face: { exprs: ["angry", "blink"], blush: true, lines: ["A-apa sih?! Jangan colek-colek!", "Hmph! Pipiku bukan buat dicolek!", "I-ih, pipiku panas... salahmu tuh!"] },
     body: { exprs: ["Surprised"], blush: false, lines: ["H-hei! Jangan sentuh sembarangan!", "A-apa yang kamu lakukan?!"] },
     legs: { exprs: ["Surprised"], blush: false, lines: ["H-hei! Jangan sentuh rokku!", "I-ih! Jangan di situ!"] }
 };
@@ -2661,6 +2663,9 @@ function startStageLoop() {
             s3expr("blink", 0);
             S3.blinkUntil = 0;
         }
+        // v2.8.8: selama sentuhan yang bikin blush, mata tetap merem
+        // (tahan di tiap frame supaya kedip otomatis tidak membukanya).
+        if (S3.touchActive && (S3.touchKind === "head" || S3.touchKind === "face")) s3expr("blink", 1);
         // v2.8: animasi reaksi sentuhan, lalu kembali ke ekspresi mood chat.
         if (S3.touchActive) {
             if (now >= S3.touchUntil) {
@@ -2694,7 +2699,10 @@ function startStageLoop() {
                 s3mouth(s, 0.5 + Math.random() * 0.4);
                 S3.mouthUntil = now + 0.09;
             }
-        } else if (S3.touchActive && S3.touchKind !== "head") {
+        } else if (S3.touchActive && (S3.touchKind === "head" || S3.touchKind === "face")) {
+            // v2.8.8: mulut manyun (U) saat blush, ala referensi.
+            s3mouth("ou", 0.7);
+        } else if (S3.touchActive) {
             // v2.8.1: mulut terbuka (O) supaya muka kaget jelas kelihatan.
             s3mouth("oh", 0.7);
         } else {

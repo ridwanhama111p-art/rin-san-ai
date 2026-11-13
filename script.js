@@ -2348,7 +2348,8 @@ var S3 = {
     raf: 0, nextBlink: 0, blinkUntil: 0, mouthUntil: 0,
     dragX: null, dragRotY: 0,
     tapX: null, tapY: null, tapT: 0,           // v2.8: ketuk (bukan seret)
-    touchUntil: 0, touchActive: false, touchKind: null // v2.8: reaksi sentuhan
+    touchUntil: 0, touchActive: false, touchKind: null, // v2.8: reaksi sentuhan
+    blush: 0, blushUntil: 0, blushMats: null    // v2.8.2: pipi merah
 };
 function s3el(id) { return (typeof document !== "undefined") ? document.getElementById(id) : null; }
 function s3status(text) {
@@ -2400,10 +2401,11 @@ function openStage3D() {
 var TOUCH_REACTIONS = {
     // v2.8.1: senyum = Joy ("happy") + Fun ("relaxed") supaya jelas
     // kelihatan; kaget = "Surprised" (huruf besar, lihat S3_EXPRS).
-    head: { exprs: ["happy", "relaxed"], lines: ["Hmph... boleh lah, dikit aja.", "Ehehe... elusanmu lumayan juga.", "H-hmph! Bukan berarti aku suka ya..."] },
-    face: { exprs: ["Surprised"], lines: ["A-apa sih?! Jangan colek-colek!", "Hmph! Pipiku bukan buat dicolek!"] },
-    body: { exprs: ["Surprised"], lines: ["H-hei! Jangan sentuh sembarangan!", "A-apa yang kamu lakukan?!"] },
-    legs: { exprs: ["Surprised"], lines: ["H-hei! Jangan sentuh rokku!", "I-ih! Jangan di situ!"] }
+    // v2.8.2: blush = pipi merah saat elus kepala & colek pipi.
+    head: { exprs: ["happy", "relaxed"], blush: true, lines: ["Hmph... boleh lah, dikit aja.", "Ehehe... elusanmu lumayan juga.", "H-hmph! Bukan berarti aku suka ya...", "M-muka aku panas... jangan diliatin terus!"] },
+    face: { exprs: ["Surprised"], blush: true, lines: ["A-apa sih?! Jangan colek-colek!", "Hmph! Pipiku bukan buat dicolek!", "I-ih, pipiku panas... salahmu tuh!"] },
+    body: { exprs: ["Surprised"], blush: false, lines: ["H-hei! Jangan sentuh sembarangan!", "A-apa yang kamu lakukan?!"] },
+    legs: { exprs: ["Surprised"], blush: false, lines: ["H-hei! Jangan sentuh rokku!", "I-ih! Jangan di situ!"] }
 };
 function touchReaction(part) { return TOUCH_REACTIONS[part] || null; }
 function touchPartFromName(name) {
@@ -2460,6 +2462,30 @@ function s3say(text) {
         }, 300);
     }, 2500);
 }
+/* v2.8.2: pipi merah — dua elips pink semi-transparan menempel di
+   tulang kepala, jadi ikut gerak kepala. Posisi lokal kepala:
+   pipi di x ±0,042, y -0,045 (di bawah mata, di atas mulut),
+   z -0,028 (sedikit di depan permukaan wajah, menghadap -Z). */
+function createBlush3D() {
+    if (!S3.vrm || !S3.THREE) return false;
+    try {
+        let head = S3.vrm.humanoid.getNormalizedBoneNode("head");
+        if (!head) return false;
+        let mats = [];
+        [-1, 1].forEach(function (side) {
+            let geo = new S3.THREE.CircleGeometry(0.022, 24);
+            let mat = new S3.THREE.MeshBasicMaterial({ color: 0xff8fab, transparent: true, opacity: 0, depthWrite: false });
+            let m = new S3.THREE.Mesh(geo, mat);
+            m.position.set(0.042 * side, -0.045, -0.028);
+            m.rotation.y = Math.PI;
+            m.scale.set(1.3, 0.75, 1);
+            head.add(m);
+            mats.push(mat);
+        });
+        S3.blushMats = mats;
+        return true;
+    } catch (e) { return false; }
+}
 function handleTouch3D(e) {
     if (!S3.vrm || !S3.THREE || !S3.camera || !S3.renderer) return;
     let el = S3.renderer.domElement;
@@ -2481,6 +2507,7 @@ function handleTouch3D(e) {
     S3.touchKind = part;
     S3.touchActive = true;
     S3.touchUntil = performance.now() / 1000 + 1.8;
+    if (react.blush) S3.blushUntil = performance.now() / 1000 + 2.5;
     s3say(line);
     try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15); } catch (err) {}
 }
@@ -2532,6 +2559,7 @@ async function ensureStage3D() {
         camera.lookAt(0, hp.y - 0.065, 0);
         S3.vrm = vrm; S3.renderer = renderer; S3.scene = scene;
         S3.camera = camera; S3.THREE = THREE;
+        try { createBlush3D(); } catch (e) {} // v2.8.2: pipi merah
         // Seret untuk memutar model; ketuk (tanpa seret) = sentuhan (v2.8).
         let el = renderer.domElement;
         el.style.touchAction = "none";
@@ -2627,6 +2655,13 @@ function startStageLoop() {
                     vrm.scene.position.y = 0.015 * w;
                 }
             }
+        }
+        // v2.8.2: pipi merah memudar masuk, lalu hilang setelah ~2,5 detik.
+        if (S3.blushMats && S3.blushMats.length) {
+            let target = (S3.blushUntil && now < S3.blushUntil) ? 0.6 : 0;
+            S3.blush += (target - S3.blush) * Math.min(1, dt * 8);
+            if (S3.blush < 0.01) S3.blush = 0;
+            S3.blushMats.forEach(function (m) { m.opacity = S3.blush; });
         }
         // Gerak bibir saat Rin bersuara (simulasi, bukan dari audio).
         if (S3.speaking) {

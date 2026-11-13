@@ -2462,22 +2462,35 @@ function s3say(text) {
         }, 300);
     }, 2500);
 }
-/* v2.8.2: pipi merah — dua elips pink semi-transparan menempel di
-   tulang kepala, jadi ikut gerak kepala. Posisi lokal kepala:
-   pipi di x ±0,042, y -0,045 (di bawah mata, di atas mulut),
-   z -0,028 (sedikit di depan permukaan wajah, menghadap -Z). */
+/* v2.8.3: pipi merah — dua elips pink semi-transparan menempel di
+   tulang kepala, jadi ikut gerak kepala. v2.8.2 menebak posisi dalam
+   ruang lokal kepala (-Z = depan) dan blush tidak pernah terlihat —
+   kemungkinan arah lokal tulang kepala tidak seperti dugaan, jadi
+   lingkaran jatuh di dalam kepala / membelakangi kamera. Perbaikan:
+   posisi pipi dihitung dari posisi DUNIA tulang kepala (setelah
+   rotateVRM0 wajah menghadap +Z dunia, kamera di z +1,35): pipi di
+   x ±0,045, y -0,045, z +0,028 dari pusat kepala, lalu diubah ke
+   ruang lokal kepala dengan worldToLocal. Orientasi lingkaran diset
+   ke kebalikan kuaternion dunia kepala, jadi menghadap +Z dunia
+   (ke kamera) apa pun orientasi lokal tulangnya. */
 function createBlush3D() {
     if (!S3.vrm || !S3.THREE) return false;
     try {
         let head = S3.vrm.humanoid.getNormalizedBoneNode("head");
         if (!head) return false;
+        let hp = new S3.THREE.Vector3();
+        head.getWorldPosition(hp);
+        let q = new S3.THREE.Quaternion();
+        head.getWorldQuaternion(q);
+        q.invert();
         let mats = [];
         [-1, 1].forEach(function (side) {
             let geo = new S3.THREE.CircleGeometry(0.022, 24);
             let mat = new S3.THREE.MeshBasicMaterial({ color: 0xff8fab, transparent: true, opacity: 0, depthWrite: false });
             let m = new S3.THREE.Mesh(geo, mat);
-            m.position.set(0.042 * side, -0.045, -0.028);
-            m.rotation.y = Math.PI;
+            let world = new S3.THREE.Vector3(hp.x + 0.045 * side, hp.y - 0.045, hp.z + 0.028);
+            m.position.copy(head.worldToLocal(world));
+            m.quaternion.copy(q);
             m.scale.set(1.3, 0.75, 1);
             head.add(m);
             mats.push(mat);
@@ -2507,7 +2520,7 @@ function handleTouch3D(e) {
     S3.touchKind = part;
     S3.touchActive = true;
     S3.touchUntil = performance.now() / 1000 + 1.8;
-    if (react.blush) S3.blushUntil = performance.now() / 1000 + 2.5;
+    if (react.blush) S3.blushUntil = performance.now() / 1000 + 3.5; // v2.8.3: 2,5 -> 3,5 detik, lebih mudah ketangkap
     s3say(line);
     try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15); } catch (err) {}
 }
@@ -2559,7 +2572,8 @@ async function ensureStage3D() {
         camera.lookAt(0, hp.y - 0.065, 0);
         S3.vrm = vrm; S3.renderer = renderer; S3.scene = scene;
         S3.camera = camera; S3.THREE = THREE;
-        try { createBlush3D(); } catch (e) {} // v2.8.2: pipi merah
+        let blushOk = false; // v2.8.3: catat kalau pipi merah gagal dibuat
+        try { blushOk = createBlush3D(); } catch (e) {}
         // Seret untuk memutar model; ketuk (tanpa seret) = sentuhan (v2.8).
         let el = renderer.domElement;
         el.style.touchAction = "none";
@@ -2596,6 +2610,7 @@ async function ensureStage3D() {
         S3.loading = false;
         S3.ready = true;
         s3status("");
+        if (!blushOk) s3status("Blush gagal dibuat"); // v2.8.3: diagnosa di layar
         applyMood3D();
         startStageLoop();
     } catch (e) {
@@ -2656,7 +2671,7 @@ function startStageLoop() {
                 }
             }
         }
-        // v2.8.2: pipi merah memudar masuk, lalu hilang setelah ~2,5 detik.
+        // v2.8.2: pipi merah memudar masuk, lalu hilang setelah ~3,5 detik.
         if (S3.blushMats && S3.blushMats.length) {
             let target = (S3.blushUntil && now < S3.blushUntil) ? 0.6 : 0;
             S3.blush += (target - S3.blush) * Math.min(1, dt * 8);

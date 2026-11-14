@@ -2588,6 +2588,7 @@ on("fileInput", "change", async function () {
    saat panggung pertama dibuka, jadi chat biasa tidak melambat.
    Model: rin-3d.vrm (Scarlet III School Ver, rambut diwarnai ungu Rin).
    Gerak: napas idle, kedip, ekspresi ikut mood, bibir ikut suara TTS.
+   v2.10: gerak bebas — aksi idle acak (menoleh, melambai, dsb.).
    Render hanya jalan saat panggung terbuka (hemat baterai). */
 
 const MOOD_EXPR = {
@@ -2625,7 +2626,9 @@ var S3 = {
     dragX: null, dragRotY: 0,
     tapX: null, tapY: null, tapT: 0,           // v2.8: ketuk (bukan seret)
     touchUntil: 0, touchActive: false, touchKind: null, // v2.8: reaksi sentuhan
-    blush: 0, blushUntil: 0, blushMats: null    // v2.8.2: pipi merah
+    blush: 0, blushUntil: 0, blushMats: null,   // v2.8.2: pipi merah
+    gestName: null, gestT0: 0, gestDur: 0, gestNext: 0, gestParams: null, gestLast: null, // v2.10: gerak bebas
+    hipsBaseY: null // v2.10: tinggi dasar pinggul (untuk lompatan kecil)
 };
 function s3el(id) { return (typeof document !== "undefined") ? document.getElementById(id) : null; }
 function s3status(text) {
@@ -2662,6 +2665,8 @@ function openStage3D() {
     if (!stage) return;
     stage.classList.add("show");
     S3.open = true;
+    S3.gestName = null; S3.gestParams = null;
+    S3.gestNext = s3now() + 2.5 + Math.random() * 2; // v2.10: gerak pertama ~3 detik setelah panggung dibuka
     toggleSidebar(false);
     applyMood3D();
     if (!S3.ready && !S3.loading) ensureStage3D();
@@ -2810,8 +2815,181 @@ function handleTouch3D(e) {
     s3say(line);
     try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15); } catch (err) {}
 }
+/* =================================================================
+   18c. Rin 3D bergerak bebas (v2.10) — aksi idle acak di panggung.
+   Rin tidak lagi diam: tiap 4–9 detik ia memilih satu aksi kecil
+   (menoleh, miringkan kepala, melambai, meregang, bergoyang,
+   menyentuh rambut, melompat kecil, mengangkat bahu), memainkannya
+   ~1,2–2,5 detik dengan ease-in/ease-out, lalu kembali ke pose
+   netral. Satu aksi dalam satu waktu; reaksi sentuhan (1,8 detik)
+   selalu menang — scheduler menunggu sampai reaksi selesai.
+   Semua offset DITAMBAHKAN di atas pose yang sudah dipasang tick
+   (rest pose lengan ±1,25 rad, napas, goyang leher): sumbu yang
+   dipasang absolut tiap frame (leher y/z, spine x, chest x,
+   upperArm z) diubah dengan +=, sumbu lain dipasang absolut dari
+   pose gerak (0 saat idle) supaya tidak menumpuk antar frame.
+   Gerak hanya jalan saat panggung terbuka; saat ditutup, scheduler
+   berhenti dan pose dikembalikan netral. */
+var S3_GESTURE_ACTIONS = ["look", "tilt", "wave", "stretch", "sway", "hairtouch", "bounce", "shrug"];
+var S3_GESTURE_DUR = { look: 2.2, tilt: 1.6, wave: 2.4, stretch: 2.0, sway: 2.4, hairtouch: 2.0, bounce: 1.4, shrug: 1.5 };
+function s3now() {
+    try { return (typeof performance !== "undefined" && performance.now) ? performance.now() / 1000 : 0; } catch (e) { return 0; }
+}
+function s3easeInOut(p) {
+    p = Math.min(Math.max(p, 0), 1);
+    return p * p * (3 - 2 * p);
+}
+function s3trap(p) { // naik 0-0.3, tahan 0.3-0.7, turun 0.7-1
+    if (p < 0.3) return s3easeInOut(p / 0.3);
+    if (p > 0.7) return 1 - s3easeInOut((p - 0.7) / 0.3);
+    return 1;
+}
+function s3bump(p) { // 0 -> 1 -> 0 halus
+    return Math.sin(Math.min(Math.max(p, 0), 1) * Math.PI);
+}
+function s3zeroPose() {
+    return {
+        neck: { x: 0, y: 0, z: 0 }, spine: { x: 0, y: 0, z: 0 }, chest: { x: 0, y: 0 },
+        hips: { y: 0, ry: 0, rz: 0 },
+        armL: { z: 0, x: 0 }, armR: { z: 0, x: 0 },
+        foreL: { x: 0 }, foreR: { x: 0 }, handR: { z: 0 }
+    };
+}
+var S3_GESTURE_ZERO = s3zeroPose();
+function s3gestureParams(name) {
+    if (name === "look") {
+        return {
+            yaw: (0.25 + Math.random() * 0.15) * (Math.random() < 0.5 ? -1 : 1),
+            pitch: -0.05 + Math.random() * 0.17
+        };
+    }
+    if (name === "tilt") {
+        return { z: (0.10 + Math.random() * 0.06) * (Math.random() < 0.5 ? -1 : 1) };
+    }
+    return {};
+}
+function s3gestureOffsets(name, p, pr) {
+    let o = s3zeroPose();
+    pr = pr || {};
+    if (name === "look") {
+        let e = s3trap(p);
+        o.neck.y = (pr.yaw || 0.3) * e;
+        o.neck.x = (pr.pitch || 0) * e;
+        o.spine.y = (pr.yaw || 0.3) * 0.25 * e;
+    } else if (name === "tilt") {
+        let e = s3bump(p);
+        o.neck.z = (pr.z || 0.12) * e;
+        o.neck.x = 0.04 * e;
+    } else if (name === "wave") {
+        let e = s3trap(p);
+        let w = Math.sin(p * Math.PI * 2 * 2.5); // kibas ~2,5x selama lambaian
+        o.armR.z = 1.55 * e;
+        o.armR.x = -0.15 * e;
+        o.foreR.x = (0.55 + 0.18 * w) * e;
+        o.handR.z = 0.25 * w * e;
+        o.neck.z = -0.05 * e;
+    } else if (name === "stretch") {
+        let e = s3bump(p);
+        o.armL.z = -0.28 * e; o.armR.z = 0.28 * e;
+        o.foreL.x = 0.15 * e; o.foreR.x = 0.15 * e;
+        o.spine.x = -0.05 * e; o.chest.x = -0.03 * e; o.neck.x = -0.04 * e;
+    } else if (name === "sway") {
+        let e = s3trap(p);
+        let s = Math.sin(p * Math.PI * 2 * 2); // 2 ayunan
+        o.hips.rz = 0.05 * s * e;
+        o.spine.y = 0.08 * s * e;
+        o.neck.y = -0.05 * s * e;
+    } else if (name === "hairtouch") {
+        let e = s3trap(p);
+        o.armR.z = 0.85 * e; o.armR.x = 0.25 * e;
+        o.foreR.x = 0.95 * e;
+        o.neck.z = 0.06 * e; o.neck.x = 0.03 * e;
+    } else if (name === "bounce") {
+        let e = s3trap(p);
+        let b = Math.abs(Math.sin(p * Math.PI * 2)); // 2 lompatan kecil
+        o.hips.y = 0.012 * b * e;
+        o.spine.x = 0.02 * b * e;
+    } else if (name === "shrug") {
+        let e = s3bump(p);
+        o.armL.z = -0.18 * e; o.armR.z = 0.18 * e;
+        o.chest.x = -0.03 * e; o.neck.x = 0.04 * e;
+    }
+    return o;
+}
+function s3bone(name) {
+    if (!S3.vrm || !S3.vrm.humanoid) return null;
+    try { return S3.vrm.humanoid.getNormalizedBoneNode(name); } catch (e) { return null; }
+}
+function s3applyGesturePose(o) {
+    if (!S3.vrm || !S3.vrm.humanoid || !o) return;
+    let neck = s3bone("neck"), spine = s3bone("spine"), chest = s3bone("chest"),
+        hips = s3bone("hips"),
+        la = s3bone("leftUpperArm"), ra = s3bone("rightUpperArm"),
+        lla = s3bone("leftLowerArm"), rla = s3bone("rightLowerArm"),
+        rh = s3bone("rightHand");
+    // Sumbu yang dipasang absolut tiap frame oleh tick (napas/goyang):
+    // tambah offset di atasnya supaya napas tetap jalan di bawah gerak.
+    // neck.rotation.x DIKECUALIKAN saat sentuhan aktif: sumbu itu milik
+    // reaksi sentuhan kepala (dipasang tiap frame di blok sentuhan).
+    if (neck) { neck.rotation.y += o.neck.y; neck.rotation.z += o.neck.z; if (!S3.touchActive) neck.rotation.x = o.neck.x; }
+    if (spine) { spine.rotation.x += o.spine.x; spine.rotation.y = o.spine.y; spine.rotation.z = o.spine.z; }
+    if (chest) { chest.rotation.x += o.chest.x; chest.rotation.y = o.chest.y; }
+    // Lengan: TAMBAH ke rest pose (±1,25 rad, dipasang ulang tiap frame
+    // oleh applyRestPose3D) — jangan pernah timpa rotation.z lengan.
+    if (la) { la.rotation.z += o.armL.z; la.rotation.x = o.armL.x; }
+    if (ra) { ra.rotation.z += o.armR.z; ra.rotation.x = o.armR.x; }
+    if (lla) lla.rotation.x = o.foreL.x;
+    if (rla) rla.rotation.x = o.foreR.x;
+    if (rh) rh.rotation.z = o.handR.z;
+    if (hips) {
+        if (S3.hipsBaseY === null || S3.hipsBaseY === undefined) S3.hipsBaseY = hips.position.y;
+        hips.position.y = S3.hipsBaseY + o.hips.y;
+        hips.rotation.y = o.hips.ry;
+        hips.rotation.z = o.hips.rz;
+    }
+}
+function s3gestureTick(now) {
+    if (!S3.open || !S3.vrm) return;
+    // Sentuhan menang: batalkan gerak yang sedang jalan, lalu diam
+    // sampai reaksi sentuhan selesai (touchActive 1,8 detik).
+    if (S3.touchActive) {
+        if (S3.gestName) {
+            S3.gestName = null; S3.gestParams = null;
+            S3.gestNext = now + 2; // jeda sebentar setelah disentuh
+            s3applyGesturePose(S3_GESTURE_ZERO);
+        }
+        return;
+    }
+    if (!S3.gestName) {
+        if (now < S3.gestNext) return;
+        let pool = S3_GESTURE_ACTIONS.filter(function (a) { return a !== S3.gestLast; });
+        let name = pool[Math.floor(Math.random() * pool.length)];
+        S3.gestName = name;
+        S3.gestLast = name;
+        S3.gestT0 = now;
+        S3.gestDur = S3_GESTURE_DUR[name] || 2;
+        S3.gestParams = s3gestureParams(name);
+        return; // pose mulai dipasang dari frame berikutnya
+    }
+    let p = (now - S3.gestT0) / S3.gestDur;
+    if (p >= 1) {
+        S3.gestName = null;
+        S3.gestParams = null;
+        S3.gestNext = now + 4 + Math.random() * 5; // jeda 4-9 detik
+        s3applyGesturePose(S3_GESTURE_ZERO);
+        return;
+    }
+    s3applyGesturePose(s3gestureOffsets(S3.gestName, p, S3.gestParams));
+}
+function resetGesture3D() {
+    S3.gestName = null;
+    S3.gestParams = null;
+    S3.gestNext = 0;
+    if (S3.vrm) s3applyGesturePose(S3_GESTURE_ZERO);
+}
 function closeStage3D() {
     S3.open = false;
+    resetGesture3D(); // v2.10: berhenti + kembali ke pose netral
     stopStageLoop();
     let stage = s3el("stage3d");
     if (stage) stage.classList.remove("show");
@@ -2847,6 +3025,8 @@ async function ensureStage3D() {
         // v2.5.1: model VRM 0.0 menghadap -Z, putar 180° supaya menghadap kamera.
         VRM.VRMUtils.rotateVRM0(vrm);
         applyRestPose3D(vrm);
+        let hips0 = vrm.humanoid.getNormalizedBoneNode("hips");
+        if (hips0) S3.hipsBaseY = hips0.position.y; // v2.10: dasar untuk lompatan kecil
         scene.add(vrm.scene);
         scene.updateMatrixWorld(true);
         // Frame setengah badan dari posisi kepala (pinggang ke atas).
@@ -2967,6 +3147,8 @@ function startStageLoop() {
             if (S3.blush < 0.01) S3.blush = 0;
             S3.blushMats.forEach(function (m) { m.opacity = S3.blush; });
         }
+        // v2.10: gerak bebas — aksi idle acak (kepala, tangan, badan).
+        s3gestureTick(now);
         // Gerak bibir saat Rin bersuara (simulasi, bukan dari audio).
         if (S3.speaking) {
             if (now >= S3.mouthUntil) {

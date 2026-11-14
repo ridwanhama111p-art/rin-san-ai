@@ -2629,7 +2629,8 @@ var S3 = {
     blush: 0, blushUntil: 0, blushMats: null,   // v2.8.2: pipi merah
     gestName: null, gestT0: 0, gestDur: 0, gestNext: 0, gestParams: null, gestLast: null, // v2.10: gerak bebas
     hipsBaseY: null, // v2.10: tinggi dasar pinggul (untuk lompatan kecil)
-    entName: null, entT0: 0, entDur: 0, entParams: null, entLast: null, entArmed: false // v2.11: animasi masuk panggung
+    entName: null, entT0: 0, entDur: 0, entParams: null, entLast: null, entArmed: false, // v2.11: animasi masuk panggung
+    baseRotY: Math.PI // v2.11.1: rotasi dasar menghadap kamera (hasil rotateVRM0; 0 = membelakangi kamera)
 };
 function s3el(id) { return (typeof document !== "undefined") ? document.getElementById(id) : null; }
 function s3status(text) {
@@ -3007,8 +3008,10 @@ function resetGesture3D() {
    (paha/betis) dipasang absolut tiap frame selama entrance dan
    dikembalikan 0 di akhir, karena tick tidak menyentuh kaki.
    Root model (vrm.scene) digeser/diputar hanya selama entrance
-   dan dikembalikan ke (0, 0, 0) di akhir — pose netral di tengah
-   frame. Rebahan sengaja TIDAK dibuat: frame setengah badan +
+   dan dikembalikan ke (0, 0, baseRotY=π) di akhir — v2.11.1:
+   rotasi 0 = membelakangi kamera karena rotateVRM0 memutar
+   model 180°, jadi semua offset rotasi entrance bersifat
+   RELATIF terhadap baseRotY. Rebahan sengaja TIDAK dibuat: frame setengah badan +
    zona sentuh berdiri tidak cocok untuk pose rebahan. */
 var S3_ENTRANCE_ACTIONS = ["walkleft", "walkright", "rise", "spin", "wavehello", "peek"];
 var S3_ENTRANCE_DUR = { walkleft: 2.2, walkright: 2.2, rise: 1.8, spin: 2.0, wavehello: 2.2, peek: 2.5 };
@@ -3084,7 +3087,10 @@ function s3applyEntrancePose(o) {
     if (sc) {
         sc.position.x = o.root.x;
         sc.position.y = o.root.y;
-        sc.rotation.y = o.root.ry;
+        // v2.11.1: rotasi entrance RELATIF terhadap rotasi dasar menghadap
+        // kamera (baseRotY = π). Dulu absolut: ry=0 membatalkan rotateVRM0
+        // sehingga Rin membelakangi kamera setiap kali entrance selesai.
+        sc.rotation.y = (S3.baseRotY || Math.PI) + o.root.ry;
     }
     let tl = s3bone("leftUpperLeg"), tr = s3bone("rightUpperLeg"),
         sl = s3bone("leftLowerLeg"), sr = s3bone("rightLowerLeg");
@@ -3123,7 +3129,7 @@ function resetEntrance3D() {
     S3.entArmed = false;
     if (S3.vrm) {
         s3applyEntrancePose(S3_ENTRANCE_ZERO);
-        S3.dragRotY = 0;
+        S3.dragRotY = S3.baseRotY || Math.PI; // v2.11.1: seret mulai dari rotasi dasar, bukan 0
     }
 }
 function closeStage3D() {
@@ -3164,6 +3170,7 @@ async function ensureStage3D() {
         if (!vrm) throw new Error("bukan model VRM");
         // v2.5.1: model VRM 0.0 menghadap -Z, putar 180° supaya menghadap kamera.
         VRM.VRMUtils.rotateVRM0(vrm);
+        S3.baseRotY = vrm.scene.rotation.y; // v2.11.1: catat rotasi dasar menghadap kamera (π)
         applyRestPose3D(vrm);
         let hips0 = vrm.humanoid.getNormalizedBoneNode("hips");
         if (hips0) S3.hipsBaseY = hips0.position.y; // v2.10: dasar untuk lompatan kecil

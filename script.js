@@ -2628,7 +2628,8 @@ var S3 = {
     touchUntil: 0, touchActive: false, touchKind: null, // v2.8: reaksi sentuhan
     blush: 0, blushUntil: 0, blushMats: null,   // v2.8.2: pipi merah
     gestName: null, gestT0: 0, gestDur: 0, gestNext: 0, gestParams: null, gestLast: null, // v2.10: gerak bebas
-    hipsBaseY: null // v2.10: tinggi dasar pinggul (untuk lompatan kecil)
+    hipsBaseY: null, // v2.10: tinggi dasar pinggul (untuk lompatan kecil)
+    entName: null, entT0: 0, entDur: 0, entParams: null, entLast: null, entArmed: false // v2.11: animasi masuk panggung
 };
 function s3el(id) { return (typeof document !== "undefined") ? document.getElementById(id) : null; }
 function s3status(text) {
@@ -2667,10 +2668,12 @@ function openStage3D() {
     S3.open = true;
     S3.gestName = null; S3.gestParams = null;
     S3.gestNext = s3now() + 2.5 + Math.random() * 2; // v2.10: gerak pertama ~3 detik setelah panggung dibuka
+    resetEntrance3D(); // v2.11: mulai dari pose netral, siapkan entrance baru
+    S3.entArmed = true; // v2.11: entrance dimainkan begitu model siap
     toggleSidebar(false);
     applyMood3D();
     if (!S3.ready && !S3.loading) ensureStage3D();
-    else if (S3.ready) startStageLoop();
+    else if (S3.ready) { startStageLoop(); s3startEntrance(); }
 }
 /* =================================================================
    18b. Rin 3D bisa disentuh (v2.8) — ketuk model, Rin bereaksi.
@@ -2792,6 +2795,7 @@ function createBlush3D() {
 }
 function handleTouch3D(e) {
     if (!S3.vrm || !S3.THREE || !S3.camera || !S3.renderer) return;
+    if (S3.entName) return; // v2.11: sentuhan diabaikan selama entrance
     let el = S3.renderer.domElement;
     let r = el.getBoundingClientRect();
     if (!r.width || !r.height) return;
@@ -2950,6 +2954,7 @@ function s3applyGesturePose(o) {
 }
 function s3gestureTick(now) {
     if (!S3.open || !S3.vrm) return;
+    if (S3.entName) return; // v2.11: gerak idle menunggu entrance selesai
     // Sentuhan menang: batalkan gerak yang sedang jalan, lalu diam
     // sampai reaksi sentuhan selesai (touchActive 1,8 detik).
     if (S3.touchActive) {
@@ -2987,8 +2992,143 @@ function resetGesture3D() {
     S3.gestNext = 0;
     if (S3.vrm) s3applyGesturePose(S3_GESTURE_ZERO);
 }
+/* =================================================================
+   18d. Rin 3D masuk panggung (v2.11) — animasi entrance acak.
+   Tiap kali panggung dibuka, Rin "datang" dengan cara berbeda:
+   jalan dari kiri/kanan, muncul dari bawah, berputar masuk,
+   melambai sambil muncul, atau mengintip dulu baru masuk. Satu
+   entrance (~1,5–2,5 detik, ease-in/ease-out), lalu pose netral
+   dan gerak idle v2.10 mengambil alih. Entrance yang sama tidak
+   diulang dua kali berturut-turut; sentuhan & seret diabaikan
+   selama entrance; kalau model masih dimuat saat panggung dibuka,
+   entrance dimainkan begitu muat selesai (sekali saja).
+   Semua offset DITAMBAHKAN di atas pose tick (rest pose lengan
+   ±1,25 rad, napas): lengan pakai += seperti v2.10; kaki
+   (paha/betis) dipasang absolut tiap frame selama entrance dan
+   dikembalikan 0 di akhir, karena tick tidak menyentuh kaki.
+   Root model (vrm.scene) digeser/diputar hanya selama entrance
+   dan dikembalikan ke (0, 0, 0) di akhir — pose netral di tengah
+   frame. Rebahan sengaja TIDAK dibuat: frame setengah badan +
+   zona sentuh berdiri tidak cocok untuk pose rebahan. */
+var S3_ENTRANCE_ACTIONS = ["walkleft", "walkright", "rise", "spin", "wavehello", "peek"];
+var S3_ENTRANCE_DUR = { walkleft: 2.2, walkright: 2.2, rise: 1.8, spin: 2.0, wavehello: 2.2, peek: 2.5 };
+function s3entranceZero() {
+    let o = s3zeroPose();
+    o.root = { x: 0, y: 0, ry: 0 };
+    o.legL = { x: 0 }; o.legR = { x: 0 };
+    o.shinL = { x: 0 }; o.shinR = { x: 0 };
+    return o;
+}
+var S3_ENTRANCE_ZERO = s3entranceZero();
+function s3entranceParams(name) {
+    if (name === "walkleft") return { side: -1 };
+    if (name === "walkright") return { side: 1 };
+    if (name === "peek") return { side: Math.random() < 0.5 ? -1 : 1 };
+    return {};
+}
+function s3entranceOffsets(name, p, pr) {
+    let o = s3entranceZero();
+    pr = pr || {};
+    let e = s3easeInOut(p);
+    if (name === "walkleft" || name === "walkright") {
+        let side = pr.side || -1;
+        o.root.x = side * 0.9 * (1 - e); // dari luar frame ke tengah
+        let w = Math.sin(p * Math.PI * 2 * 2); // 2 langkah penuh
+        let env = p < 0.8 ? 1 : Math.max(0, 1 - (p - 0.8) / 0.2); // kaki lurus menjelang sampai
+        o.legL.x = -0.45 * w * env;
+        o.legR.x = 0.45 * w * env;
+        o.shinL.x = 0.55 * Math.max(0, w) * env;
+        o.shinR.x = 0.55 * Math.max(0, -w) * env;
+        o.armL.z = -0.12 * w * env;
+        o.armR.z = 0.12 * w * env;
+        o.hips.y = 0.012 * Math.abs(w) * env;
+    } else if (name === "rise") {
+        o.root.y = -0.55 * (1 - e); // muncul dari bawah frame
+        if (p > 0.85) o.root.y += 0.015 * Math.sin((p - 0.85) / 0.15 * Math.PI); // hentakan kecil saat mendarat
+        o.spine.x = -0.03 * s3bump(p);
+    } else if (name === "spin") {
+        o.root.ry = -2 * Math.PI * (1 - e); // satu putaran penuh, berakhir menghadap kamera
+        o.root.x = 0.15 * (1 - e); // sedikit meluncur sambil berputar
+    } else if (name === "wavehello") {
+        let t = s3trap(p);
+        let w = Math.sin(p * Math.PI * 2 * 2); // kibas ~2x
+        o.root.y = -0.25 * (1 - e); // muncul dari bawah sambil melambai
+        o.armR.z = 1.55 * t;
+        o.armR.x = -0.15 * t;
+        o.foreR.x = (0.55 + 0.18 * w) * t;
+        o.handR.z = 0.25 * w * t;
+        o.neck.z = -0.05 * t;
+    } else if (name === "peek") {
+        let side = pr.side || -1;
+        if (p < 0.45) {
+            let q = s3easeInOut(p / 0.45);
+            o.root.x = side * (0.9 - 0.55 * q); // masuk setengah
+            let w = Math.sin((p / 0.45) * Math.PI * 2);
+            o.legL.x = -0.3 * w; o.legR.x = 0.3 * w;
+        } else if (p < 0.65) {
+            o.root.x = side * 0.35; // jeda mengintip
+            o.neck.z = 0.08 * side;
+        } else {
+            let q = s3easeInOut((p - 0.65) / 0.35);
+            o.root.x = side * 0.35 * (1 - q); // masuk penuh
+            let w = Math.sin(((p - 0.65) / 0.35) * Math.PI * 2);
+            o.legL.x = -0.3 * w; o.legR.x = 0.3 * w;
+        }
+    }
+    return o;
+}
+function s3applyEntrancePose(o) {
+    if (!S3.vrm || !o) return;
+    s3applyGesturePose(o); // badan — sama seperti gerak idle (tambah di atas rest pose)
+    let sc = S3.vrm.scene;
+    if (sc) {
+        sc.position.x = o.root.x;
+        sc.position.y = o.root.y;
+        sc.rotation.y = o.root.ry;
+    }
+    let tl = s3bone("leftUpperLeg"), tr = s3bone("rightUpperLeg"),
+        sl = s3bone("leftLowerLeg"), sr = s3bone("rightLowerLeg");
+    if (tl) tl.rotation.x = o.legL.x;
+    if (tr) tr.rotation.x = o.legR.x;
+    if (sl) sl.rotation.x = o.shinL.x;
+    if (sr) sr.rotation.x = o.shinR.x;
+}
+function s3startEntrance() {
+    if (!S3.open || !S3.vrm || !S3.entArmed) return;
+    S3.entArmed = false;
+    let pool = S3_ENTRANCE_ACTIONS.filter(function (a) { return a !== S3.entLast; });
+    let name = pool[Math.floor(Math.random() * pool.length)];
+    S3.entName = name;
+    S3.entLast = name;
+    S3.entT0 = s3now();
+    S3.entDur = S3_ENTRANCE_DUR[name] || 2;
+    S3.entParams = s3entranceParams(name);
+    S3.gestNext = S3.entT0 + S3.entDur + 1; // gerak idle menunggu entrance selesai
+}
+function s3entranceTick(now) {
+    if (!S3.open || !S3.vrm || !S3.entName) return;
+    let p = (now - S3.entT0) / S3.entDur;
+    if (p >= 1) {
+        S3.entName = null;
+        S3.entParams = null;
+        s3applyEntrancePose(S3_ENTRANCE_ZERO); // kembali ke pose netral persis
+        S3.gestNext = now + 2 + Math.random() * 2; // gerak idle pertama setelah entrance
+        return;
+    }
+    s3applyEntrancePose(s3entranceOffsets(S3.entName, p, S3.entParams));
+}
+function resetEntrance3D() {
+    S3.entName = null;
+    S3.entParams = null;
+    S3.entArmed = false;
+    if (S3.vrm) {
+        s3applyEntrancePose(S3_ENTRANCE_ZERO);
+        S3.dragRotY = 0;
+    }
+}
 function closeStage3D() {
     S3.open = false;
+    resetEntrance3D(); // v2.11: hentikan entrance + kembali ke pose netral
     resetGesture3D(); // v2.10: berhenti + kembali ke pose netral
     stopStageLoop();
     let stage = s3el("stage3d");
@@ -3044,12 +3184,13 @@ async function ensureStage3D() {
         let el = renderer.domElement;
         el.style.touchAction = "none";
         el.addEventListener("pointerdown", function (e) {
+            if (S3.entName) return; // v2.11: seret diabaikan selama entrance
             S3.dragX = e.clientX; S3.dragRotY = vrm.scene.rotation.y;
             S3.tapX = e.clientX; S3.tapY = e.clientY; S3.tapT = performance.now();
             try { el.setPointerCapture(e.pointerId); } catch (err) {}
         });
         el.addEventListener("pointermove", function (e) {
-            if (S3.dragX === null) return;
+            if (S3.dragX === null || S3.entName) return; // v2.11: jangan putar model saat entrance
             if (S3.tapX !== null && (Math.abs(e.clientX - S3.tapX) > 10 || Math.abs(e.clientY - S3.tapY) > 10)) S3.tapX = null;
             vrm.scene.rotation.y = S3.dragRotY + (e.clientX - S3.dragX) * 0.006;
         });
@@ -3079,6 +3220,7 @@ async function ensureStage3D() {
         if (!blushOk) s3status("Blush gagal dibuat"); // v2.8.3: diagnosa di layar
         applyMood3D();
         startStageLoop();
+        if (S3.open && S3.entArmed) s3startEntrance(); // v2.11: entrance begitu model selesai dimuat
     } catch (e) {
         S3.loading = false;
         s3status("Rin 3D tidak bisa dimuat di perangkat ini. Coba lagi nanti ya.");
@@ -3147,7 +3289,8 @@ function startStageLoop() {
             if (S3.blush < 0.01) S3.blush = 0;
             S3.blushMats.forEach(function (m) { m.opacity = S3.blush; });
         }
-        // v2.10: gerak bebas — aksi idle acak (kepala, tangan, badan).
+        // v2.11: animasi masuk panggung, lalu gerak bebas (v2.10).
+        s3entranceTick(now);
         s3gestureTick(now);
         // Gerak bibir saat Rin bersuara (simulasi, bukan dari audio).
         if (S3.speaking) {

@@ -2142,14 +2142,64 @@ function stripSpeechMarkup(text) {
         .replace(/\s+/g, " ")
         .trim();
 }
+/* v2.9: suara Rin dari ElevenLabs (voice "Rin-san" bikinan Ridwan, via
+   Worker /tts) — fallback ke Google TTS kalau Worker belum dipasang,
+   secret belum ada, kuota habis, atau audio gagal diputar. */
+var rinAudio = null; // audio ElevenLabs yang sedang diputar
+var speakSeq = 0; // token: balasan lama diabaikan kalau Stop / bicara baru
 function speakRin(text, msgId) {
+    let clean = stripSpeechMarkup(text);
+    if (!clean) return;
+    stopSpeaking();
+    let seq = speakSeq;
+    speakRinElevenLabs(clean, msgId, seq);
+}
+async function speakRinElevenLabs(clean, msgId, seq) {
+    try {
+        if (typeof fetch === "undefined" || typeof Audio === "undefined") throw new Error("no-audio-fetch");
+        let r = await fetch(WORKER_URL + "/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: clean.slice(0, 500) })
+        });
+        if (seq !== speakSeq) return; // sudah di-Stop / bicara baru
+        if (!r || !r.ok) throw new Error("tts-http-" + (r && r.status));
+        let ct = "";
+        try { ct = (r.headers && r.headers.get("Content-Type")) || ""; } catch (e) {}
+        if (ct && ct.indexOf("audio") === -1) throw new Error("tts-bukan-audio");
+        let blob = await r.blob();
+        if (seq !== speakSeq) return;
+        let url = URL.createObjectURL(blob);
+        let audio = new Audio(url);
+        rinAudio = audio;
+        speakingMsgId = msgId || null;
+        markSpeakingButtons();
+        audio.onplay = function () { setSpeaking3D(true); }; // v2.5: bibir 3D ikut bicara
+        audio.onended = function () {
+            setSpeaking3D(false);
+            try { URL.revokeObjectURL(url); } catch (e) {}
+            if (rinAudio === audio) rinAudio = null;
+            if (speakingMsgId === msgId) { speakingMsgId = null; markSpeakingButtons(); }
+        };
+        audio.onerror = function () {
+            setSpeaking3D(false);
+            try { URL.revokeObjectURL(url); } catch (e) {}
+            if (rinAudio === audio) rinAudio = null;
+            if (speakingMsgId === msgId) { speakingMsgId = null; markSpeakingButtons(); }
+            speakRinGoogle(clean, msgId);
+        };
+        await audio.play();
+    } catch (e) {
+        if (seq !== speakSeq) return;
+        speakRinGoogle(clean, msgId);
+    }
+}
+function speakRinGoogle(clean, msgId) {
     if (typeof speechSynthesis === "undefined" ||
         typeof SpeechSynthesisUtterance === "undefined") {
         showToast("Browser ini tidak mendukung suara");
         return;
     }
-    let clean = stripSpeechMarkup(text);
-    if (!clean) return;
     stopSpeaking();
     let u = new SpeechSynthesisUtterance(clean);
     u.lang = "id-ID";
@@ -2183,7 +2233,12 @@ function speakRin(text, msgId) {
     }
 }
 function stopSpeaking() {
+    speakSeq++; // batalkan fetch /tts yang masih jalan
     setSpeaking3D(false); // v2.5: bibir 3D berhenti
+    if (rinAudio) {
+        try { rinAudio.pause(); } catch (e) {}
+        rinAudio = null;
+    }
     if (typeof speechSynthesis !== "undefined" && speechSynthesis.cancel) {
         try { speechSynthesis.cancel(); } catch (e) {}
     }

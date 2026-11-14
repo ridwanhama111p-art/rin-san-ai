@@ -21,8 +21,14 @@ const MEMORY_KEY = "rinMemory";
 const MEMORY_ON_KEY = "rinMemoryOn";
 const MEMORY_MAX = 40;
 const VOICE_KEY = "rinVoiceOn"; // v2: suara Rin (TTS) otomatis, default mati
+const SPEED_KEY = "rinVoiceSpeed"; // v2.9.1: kecepatan suara Rin, 0.7–1.2, default 1.0
+const SPEED_MIN = 0.7; // v2.9.1: batas ElevenLabs voice_settings.speed
+const SPEED_MAX = 1.2;
+const SPEED_DEFAULT = 1;
 
 let voiceOn = false; // v2: baca otomatis balasan Rin
+let voiceSpeed = 1; // v2.9.1: kecepatan suara Rin (dikirim ke /tts; dipakai juga fallback Google)
+let voiceSpeedWrapEl = null; // v2.9.1: pembungkus slider kecepatan suara (dibangun sekali)
 let speakingMsgId = null; // v2: id pesan Rin yang sedang dibacakan
 let recognition = null; // v2: SpeechRecognition aktif (null kalau tidak merekam)
 let listening = false; // v2: mic sedang merekam
@@ -2092,11 +2098,78 @@ function saveVoice() {
         localStorage.setItem(VOICE_KEY, voiceOn ? "1" : "0");
     } catch (e) {}
 }
+/* v2.9.1: kecepatan suara Rin (slider di Settings). Disimpan di
+   localStorage, dijepit ke 0.7–1.2 (batas ElevenLabs speed). */
+function clampVoiceSpeed(v) {
+    let n = Number(v);
+    if (!isFinite(n)) return SPEED_DEFAULT;
+    return Math.min(SPEED_MAX, Math.max(SPEED_MIN, n));
+}
+function loadVoiceSpeed() {
+    try {
+        let raw = localStorage.getItem(SPEED_KEY);
+        voiceSpeed = (raw === null || raw === "") ? SPEED_DEFAULT : clampVoiceSpeed(raw);
+    } catch (e) {
+        voiceSpeed = SPEED_DEFAULT;
+    }
+}
+function saveVoiceSpeed() {
+    try {
+        localStorage.setItem(SPEED_KEY, String(voiceSpeed));
+    } catch (e) {}
+}
+function renderVoiceSpeedVal() {
+    if (!voiceSpeedWrapEl || !voiceSpeedWrapEl.querySelector) return;
+    let val = voiceSpeedWrapEl.querySelector("#voiceSpeedVal");
+    if (val) val.textContent = voiceSpeed.toFixed(2) + "×";
+}
+/* v2.9.1: slider kecepatan suara di accordion "Suara & cadangan",
+   tepat di bawah tombol Suara Rin. Dibangun dari JS supaya tidak
+   perlu ubah index.html; memakai class .backup-note yang sudah ada
+   supaya tampilannya sama dengan catatan di panel itu. */
+function renderVoiceSpeed() {
+    let b = $("voiceToggle");
+    if (!b || typeof document === "undefined" || !document.createElement) return;
+    if (!voiceSpeedWrapEl) {
+        let wrap = document.createElement("div");
+        wrap.id = "voiceSpeedWrap";
+        wrap.className = "backup-note";
+        let label = document.createElement("label");
+        label.setAttribute("for", "voiceSpeed");
+        label.textContent = "Kecepatan suara: ";
+        let val = document.createElement("span");
+        val.id = "voiceSpeedVal";
+        label.appendChild(val);
+        let slider = document.createElement("input");
+        slider.type = "range";
+        slider.id = "voiceSpeed";
+        slider.min = String(SPEED_MIN);
+        slider.max = String(SPEED_MAX);
+        slider.step = "0.05";
+        slider.value = String(voiceSpeed);
+        slider.addEventListener("input", function () {
+            voiceSpeed = clampVoiceSpeed(slider.value);
+            saveVoiceSpeed();
+            renderVoiceSpeedVal();
+        });
+        wrap.appendChild(label);
+        wrap.appendChild(slider);
+        let parent = b.parentNode;
+        if (parent && parent.insertBefore) parent.insertBefore(wrap, b.nextSibling || null);
+        else if ($("accBackup") && $("accBackup").appendChild) $("accBackup").appendChild(wrap);
+        else return;
+        voiceSpeedWrapEl = wrap;
+    }
+    let slider = voiceSpeedWrapEl.querySelector ? voiceSpeedWrapEl.querySelector("#voiceSpeed") : null;
+    if (slider) slider.value = String(voiceSpeed);
+    renderVoiceSpeedVal();
+}
 function renderVoiceToggle() {
     let b = $("voiceToggle");
     if (!b) return;
     b.textContent = voiceOn ? "Suara Rin: Aktif ✅" : "Suara Rin: Mati ⏸️";
     b.classList.toggle("on", voiceOn);
+    renderVoiceSpeed();
 }
 function toggleVoice() {
     voiceOn = !voiceOn;
@@ -2160,7 +2233,7 @@ async function speakRinElevenLabs(clean, msgId, seq) {
         let r = await fetch(WORKER_URL + "/tts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: clean.slice(0, 500) })
+            body: JSON.stringify({ text: clean.slice(0, 500), speed: voiceSpeed })
         });
         if (seq !== speakSeq) return; // sudah di-Stop / bicara baru
         if (!r || !r.ok) throw new Error("tts-http-" + (r && r.status));
@@ -2203,7 +2276,7 @@ function speakRinGoogle(clean, msgId) {
     stopSpeaking();
     let u = new SpeechSynthesisUtterance(clean);
     u.lang = "id-ID";
-    u.rate = 1;
+    u.rate = voiceSpeed; // v2.9.1: slider kecepatan ikut berlaku di fallback Google
     u.pitch = 1.05;
     let v = pickRinVoice();
     if (v) u.voice = v;
@@ -2792,6 +2865,7 @@ loadStore();
 loadPersona();
 loadMemory();
 loadVoice(); // v2
+loadVoiceSpeed(); // v2.9.1
 renderVoiceToggle(); // v2
 if (typeof speechSynthesis !== "undefined" && speechSynthesis.addEventListener) {
     // v2: daftar suara kadang baru terisi belakangan (async)

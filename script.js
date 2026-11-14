@@ -29,12 +29,31 @@ const STABILITY_KEY = "rinVoiceStability"; // v2.9.2: ekspresif suara Rin, 0.2�
 const STABILITY_MIN = 0.2; // v2.9.2: batas slider ekspresif (stability ElevenLabs)
 const STABILITY_MAX = 0.8;
 const STABILITY_DEFAULT = 0.5;
+const MOOD_VOICE_KEY = "rinMoodVoiceOn"; // v2.9.3: nada ikut suasana hati, default nyala
+// v2.9.3: offset nada per suasana hati (ditambahkan ke nilai slider,
+// lalu dijepit ke 0.7-1.2 / 0.2-0.8). Mood = 12 string di faceTable()/MOOD_EXPR.
+const MOOD_VOICE = {
+    senang:   { speed: 0.08, stability: -0.10 },
+    jahil:    { speed: 0.05, stability: -0.10 },
+    malu:     { speed: -0.03, stability: -0.05 },
+    salting:  { speed: -0.03, stability: -0.05 },
+    kesal:    { speed: 0.05, stability: -0.05 },
+    ngambek:  { speed: 0.03, stability: -0.05 },
+    panik:    { speed: 0.08, stability: -0.08 },
+    bingung:  { speed: 0.03, stability: -0.03 },
+    santai:   { speed: -0.05, stability: 0.05 },
+    ngantuk:  { speed: -0.08, stability: 0.10 },
+    dingin:   { speed: -0.05, stability: 0.08 },
+    serius:   { speed: 0, stability: 0.05 }
+};
 
 let voiceOn = false; // v2: baca otomatis balasan Rin
 let voiceSpeed = 1; // v2.9.1: kecepatan suara Rin (dikirim ke /tts; dipakai juga fallback Google)
 let voiceSpeedWrapEl = null; // v2.9.1: pembungkus slider kecepatan suara (dibangun sekali)
 let voiceStability = 0.5; // v2.9.2: ekspresif suara Rin (dikirim ke /tts; Google fallback tidak punya stability)
 let voiceStabilityWrapEl = null; // v2.9.2: pembungkus slider ekspresif (dibangun sekali)
+let moodVoiceOn = true; // v2.9.3: nada ikut suasana hati (default nyala)
+let moodVoiceToggleEl = null; // v2.9.3: tombol toggle nada-mood (dibangun sekali)
 let speakingMsgId = null; // v2: id pesan Rin yang sedang dibacakan
 let recognition = null; // v2: SpeechRecognition aktif (null kalau tidak merekam)
 let listening = false; // v2: mic sedang merekam
@@ -2199,6 +2218,56 @@ function renderVoiceStability() {
     if (slider) slider.value = String(voiceStability);
     renderVoiceStabilityVal();
 }
+/* v2.9.3: nada suara Rin ikut suasana hati balasan. Offset kecil
+   ditambahkan ke nilai slider (kecepatan + ekspresif), lalu dijepit ke
+   batas ElevenLabs. Toggle di bawah mematikan offset sepenuhnya. */
+function moodVoiceOffset(mood) {
+    return MOOD_VOICE[mood] || { speed: 0, stability: 0 };
+}
+function moodForSpeech(msgId) {
+    let m = null;
+    try { m = (typeof findMsg === "function") ? findMsg(msgId) : null; } catch (e) {}
+    if (m && m.mood && MOOD_VOICE[m.mood]) return m.mood;
+    let chat = null;
+    try { chat = (typeof getActive === "function") ? getActive() : null; } catch (e) {}
+    if (chat && chat.mood && MOOD_VOICE[chat.mood]) return chat.mood;
+    return "santai";
+}
+function effectiveVoice(mood) {
+    let off = moodVoiceOn ? moodVoiceOffset(mood) : { speed: 0, stability: 0 };
+    return {
+        speed: clampVoiceSpeed(voiceSpeed + off.speed),
+        stability: clampVoiceStability(voiceStability + off.stability)
+    };
+}
+function loadMoodVoice() {
+    try { moodVoiceOn = localStorage.getItem(MOOD_VOICE_KEY) !== "0"; } catch (e) { moodVoiceOn = true; }
+}
+function saveMoodVoice() {
+    try { localStorage.setItem(MOOD_VOICE_KEY, moodVoiceOn ? "1" : "0"); } catch (e) {}
+}
+function renderMoodVoiceToggle() {
+    if (typeof document === "undefined" || !document.createElement) return;
+    if (!moodVoiceToggleEl) {
+        let b = document.createElement("button");
+        b.id = "moodVoiceToggle";
+        b.className = "memory-toggle";
+        b.onclick = function () { toggleMoodVoice(); };
+        let anchor = voiceStabilityWrapEl;
+        if (anchor && anchor.parentNode && anchor.parentNode.insertBefore) anchor.parentNode.insertBefore(b, anchor.nextSibling || null);
+        else if ($("accBackup") && $("accBackup").appendChild) $("accBackup").appendChild(b);
+        else return;
+        moodVoiceToggleEl = b;
+    }
+    moodVoiceToggleEl.textContent = moodVoiceOn ? "Nada ikut suasana hati: Aktif ✅" : "Nada ikut suasana hati: Mati ⏸️";
+    moodVoiceToggleEl.classList.toggle("on", moodVoiceOn);
+}
+function toggleMoodVoice() {
+    moodVoiceOn = !moodVoiceOn;
+    saveMoodVoice();
+    renderMoodVoiceToggle();
+    showToast(moodVoiceOn ? "🎭 Nada ikut suasana hati aktif" : "🎭 Nada ikut suasana hati mati");
+}
 /* v2.9.1: slider kecepatan suara di accordion "Suara & cadangan",
    tepat di bawah tombol Suara Rin. Dibangun dari JS supaya tidak
    perlu ubah index.html; memakai class .backup-note yang sudah ada
@@ -2247,6 +2316,7 @@ function renderVoiceToggle() {
     b.classList.toggle("on", voiceOn);
     renderVoiceSpeed();
     renderVoiceStability();
+    renderMoodVoiceToggle();
 }
 function toggleVoice() {
     voiceOn = !voiceOn;
@@ -2302,15 +2372,16 @@ function speakRin(text, msgId) {
     if (!clean) return;
     stopSpeaking();
     let seq = speakSeq;
-    speakRinElevenLabs(clean, msgId, seq);
+    let eff = effectiveVoice(moodForSpeech(msgId)); // v2.9.3: nada ikut mood balasan ini
+    speakRinElevenLabs(clean, msgId, seq, eff);
 }
-async function speakRinElevenLabs(clean, msgId, seq) {
+async function speakRinElevenLabs(clean, msgId, seq, eff) {
     try {
         if (typeof fetch === "undefined" || typeof Audio === "undefined") throw new Error("no-audio-fetch");
         let r = await fetch(WORKER_URL + "/tts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: clean.slice(0, 500), speed: voiceSpeed, stability: voiceStability })
+            body: JSON.stringify({ text: clean.slice(0, 500), speed: (eff && eff.speed) || voiceSpeed, stability: (eff && eff.stability) || voiceStability })
         });
         if (seq !== speakSeq) return; // sudah di-Stop / bicara baru
         if (!r || !r.ok) throw new Error("tts-http-" + (r && r.status));
@@ -2336,15 +2407,15 @@ async function speakRinElevenLabs(clean, msgId, seq) {
             try { URL.revokeObjectURL(url); } catch (e) {}
             if (rinAudio === audio) rinAudio = null;
             if (speakingMsgId === msgId) { speakingMsgId = null; markSpeakingButtons(); }
-            speakRinGoogle(clean, msgId);
+            speakRinGoogle(clean, msgId, eff);
         };
         await audio.play();
     } catch (e) {
         if (seq !== speakSeq) return;
-        speakRinGoogle(clean, msgId);
+        speakRinGoogle(clean, msgId, eff);
     }
 }
-function speakRinGoogle(clean, msgId) {
+function speakRinGoogle(clean, msgId, eff) {
     if (typeof speechSynthesis === "undefined" ||
         typeof SpeechSynthesisUtterance === "undefined") {
         showToast("Browser ini tidak mendukung suara");
@@ -2353,7 +2424,7 @@ function speakRinGoogle(clean, msgId) {
     stopSpeaking();
     let u = new SpeechSynthesisUtterance(clean);
     u.lang = "id-ID";
-    u.rate = voiceSpeed; // v2.9.1: slider kecepatan ikut berlaku di fallback Google
+    u.rate = (eff && eff.speed) || voiceSpeed; // v2.9.3: kecepatan efektif (slider + offset mood)
     u.pitch = 1.05;
     let v = pickRinVoice();
     if (v) u.voice = v;
@@ -2944,6 +3015,7 @@ loadMemory();
 loadVoice(); // v2
 loadVoiceSpeed(); // v2.9.1
 loadVoiceStability(); // v2.9.2
+loadMoodVoice(); // v2.9.3
 renderVoiceToggle(); // v2
 if (typeof speechSynthesis !== "undefined" && speechSynthesis.addEventListener) {
     // v2: daftar suara kadang baru terisi belakangan (async)

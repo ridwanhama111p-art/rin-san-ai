@@ -25,10 +25,16 @@ const SPEED_KEY = "rinVoiceSpeed"; // v2.9.1: kecepatan suara Rin, 0.7–1.2, de
 const SPEED_MIN = 0.7; // v2.9.1: batas ElevenLabs voice_settings.speed
 const SPEED_MAX = 1.2;
 const SPEED_DEFAULT = 1;
+const STABILITY_KEY = "rinVoiceStability"; // v2.9.2: ekspresif suara Rin, 0.2–0.8, default 0.5
+const STABILITY_MIN = 0.2; // v2.9.2: batas slider ekspresif (stability ElevenLabs)
+const STABILITY_MAX = 0.8;
+const STABILITY_DEFAULT = 0.5;
 
 let voiceOn = false; // v2: baca otomatis balasan Rin
 let voiceSpeed = 1; // v2.9.1: kecepatan suara Rin (dikirim ke /tts; dipakai juga fallback Google)
 let voiceSpeedWrapEl = null; // v2.9.1: pembungkus slider kecepatan suara (dibangun sekali)
+let voiceStability = 0.5; // v2.9.2: ekspresif suara Rin (dikirim ke /tts; Google fallback tidak punya stability)
+let voiceStabilityWrapEl = null; // v2.9.2: pembungkus slider ekspresif (dibangun sekali)
 let speakingMsgId = null; // v2: id pesan Rin yang sedang dibacakan
 let recognition = null; // v2: SpeechRecognition aktif (null kalau tidak merekam)
 let listening = false; // v2: mic sedang merekam
@@ -2123,6 +2129,76 @@ function renderVoiceSpeedVal() {
     let val = voiceSpeedWrapEl.querySelector("#voiceSpeedVal");
     if (val) val.textContent = voiceSpeed.toFixed(2) + "×";
 }
+/* v2.9.2: ekspresif suara Rin (slider di Settings). Disimpan di
+   localStorage, dijepit ke 0.2–0.8. Nilai kecil = nada lebih
+   naik-turun (lebih ekspresif); nilai besar = nada lebih stabil/datar.
+   Hanya berlaku untuk suara ElevenLabs; fallback Google tidak punya stability. */
+function clampVoiceStability(v) {
+    let n = Number(v);
+    if (!isFinite(n)) return STABILITY_DEFAULT;
+    return Math.min(STABILITY_MAX, Math.max(STABILITY_MIN, n));
+}
+function loadVoiceStability() {
+    try {
+        let raw = localStorage.getItem(STABILITY_KEY);
+        voiceStability = (raw === null || raw === "") ? STABILITY_DEFAULT : clampVoiceStability(raw);
+    } catch (e) {
+        voiceStability = STABILITY_DEFAULT;
+    }
+}
+function saveVoiceStability() {
+    try {
+        localStorage.setItem(STABILITY_KEY, String(voiceStability));
+    } catch (e) {}
+}
+function renderVoiceStabilityVal() {
+    if (!voiceStabilityWrapEl || !voiceStabilityWrapEl.querySelector) return;
+    let val = voiceStabilityWrapEl.querySelector("#voiceStabilityVal");
+    if (val) val.textContent = voiceStability.toFixed(2);
+}
+/* v2.9.2: slider ekspresif tepat di bawah slider kecepatan suara,
+   di accordion "Suara & cadangan". Dibangun dari JS seperti slider
+   kecepatan; memakai class .backup-note yang sudah ada. */
+function renderVoiceStability() {
+    let b = $("voiceToggle");
+    if (!b || typeof document === "undefined" || !document.createElement) return;
+    if (!voiceStabilityWrapEl) {
+        let wrap = document.createElement("div");
+        wrap.id = "voiceStabilityWrap";
+        wrap.className = "backup-note";
+        let label = document.createElement("label");
+        label.setAttribute("for", "voiceStability");
+        label.textContent = "Ekspresif: ";
+        let val = document.createElement("span");
+        val.id = "voiceStabilityVal";
+        label.appendChild(val);
+        let slider = document.createElement("input");
+        slider.type = "range";
+        slider.id = "voiceStability";
+        slider.min = String(STABILITY_MIN);
+        slider.max = String(STABILITY_MAX);
+        slider.step = "0.05";
+        slider.value = String(voiceStability);
+        slider.addEventListener("input", function () {
+            voiceStability = clampVoiceStability(slider.value);
+            saveVoiceStability();
+            renderVoiceStabilityVal();
+        });
+        let hint = document.createElement("span");
+        hint.textContent = " (kecil = nada lebih naik-turun)";
+        wrap.appendChild(label);
+        wrap.appendChild(slider);
+        wrap.appendChild(hint);
+        let anchor = voiceSpeedWrapEl;
+        if (anchor && anchor.parentNode && anchor.parentNode.insertBefore) anchor.parentNode.insertBefore(wrap, anchor.nextSibling || null);
+        else if ($("accBackup") && $("accBackup").appendChild) $("accBackup").appendChild(wrap);
+        else return;
+        voiceStabilityWrapEl = wrap;
+    }
+    let slider = voiceStabilityWrapEl.querySelector ? voiceStabilityWrapEl.querySelector("#voiceStability") : null;
+    if (slider) slider.value = String(voiceStability);
+    renderVoiceStabilityVal();
+}
 /* v2.9.1: slider kecepatan suara di accordion "Suara & cadangan",
    tepat di bawah tombol Suara Rin. Dibangun dari JS supaya tidak
    perlu ubah index.html; memakai class .backup-note yang sudah ada
@@ -2170,6 +2246,7 @@ function renderVoiceToggle() {
     b.textContent = voiceOn ? "Suara Rin: Aktif ✅" : "Suara Rin: Mati ⏸️";
     b.classList.toggle("on", voiceOn);
     renderVoiceSpeed();
+    renderVoiceStability();
 }
 function toggleVoice() {
     voiceOn = !voiceOn;
@@ -2233,7 +2310,7 @@ async function speakRinElevenLabs(clean, msgId, seq) {
         let r = await fetch(WORKER_URL + "/tts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: clean.slice(0, 500), speed: voiceSpeed })
+            body: JSON.stringify({ text: clean.slice(0, 500), speed: voiceSpeed, stability: voiceStability })
         });
         if (seq !== speakSeq) return; // sudah di-Stop / bicara baru
         if (!r || !r.ok) throw new Error("tts-http-" + (r && r.status));
@@ -2866,6 +2943,7 @@ loadPersona();
 loadMemory();
 loadVoice(); // v2
 loadVoiceSpeed(); // v2.9.1
+loadVoiceStability(); // v2.9.2
 renderVoiceToggle(); // v2
 if (typeof speechSynthesis !== "undefined" && speechSynthesis.addEventListener) {
     // v2: daftar suara kadang baru terisi belakangan (async)

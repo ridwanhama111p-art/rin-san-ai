@@ -573,6 +573,7 @@ function renderChat() {
     if (changed) saveStore();
     updateHeaderMood();
     applyMsgSearch(); // v2: pulihkan highlight pencarian pesan setelah render ulang
+    markVoicePlayers(); // v2.12: pulihkan status player suara setelah render ulang
 }
 function renderList() {
     let list = $("chatList");
@@ -817,6 +818,11 @@ function addMessage(name, text, type, savedTime, imgSrc, animate, msgId, mood) {
         attachLongPress(bubble, function () {
             openMsgMenu(msgId || null, row, text);
         });
+    }
+
+    // v2.12: player pesan suara ala WhatsApp di dalam bubble balasan Rin
+    if (type === "rin" && text) {
+        bubble.appendChild(buildVoicePlayer(text, msgId));
     }
 
     let time = document.createElement("span");
@@ -2378,6 +2384,14 @@ function speakRin(text, msgId) {
 async function speakRinElevenLabs(clean, msgId, seq, eff) {
     try {
         if (typeof fetch === "undefined" || typeof Audio === "undefined") throw new Error("no-audio-fetch");
+        // v2.12: putar ulang dari cache tanpa panggil /tts lagi (teks sama).
+        let cached = (msgId && voiceCache[msgId] && voiceCache[msgId].text === clean) ? voiceCache[msgId] : null;
+        if (cached && cached.url) {
+            let audio = new Audio(cached.url);
+            await playVoiceAudio(audio, cached.url, clean, msgId, seq, eff, true);
+            return;
+        }
+        setVoiceLoading(msgId, true); // v2.12: tombol play jadi "…" selama /tts diambil
         let r = await fetch(WORKER_URL + "/tts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -2391,33 +2405,22 @@ async function speakRinElevenLabs(clean, msgId, seq, eff) {
         let blob = await r.blob();
         if (seq !== speakSeq) return;
         let url = URL.createObjectURL(blob);
+        if (msgId) {
+            voiceCachePut(msgId, { url: url, blob: blob, text: clean, duration: null, peaks: voiceDecorativePeaks(VOICE_BARS, voiceHash(msgId)), source: "eleven" });
+            decodeVoiceAudio(blob, msgId); // v2.12: isi durasi + waveform asli (async, tanpa blokir putar)
+        }
         let audio = new Audio(url);
-        rinAudio = audio;
-        speakingMsgId = msgId || null;
-        markSpeakingButtons();
-        audio.onplay = function () { setSpeaking3D(true); }; // v2.5: bibir 3D ikut bicara
-        audio.onended = function () {
-            setSpeaking3D(false);
-            try { URL.revokeObjectURL(url); } catch (e) {}
-            if (rinAudio === audio) rinAudio = null;
-            if (speakingMsgId === msgId) { speakingMsgId = null; markSpeakingButtons(); }
-        };
-        audio.onerror = function () {
-            setSpeaking3D(false);
-            try { URL.revokeObjectURL(url); } catch (e) {}
-            if (rinAudio === audio) rinAudio = null;
-            if (speakingMsgId === msgId) { speakingMsgId = null; markSpeakingButtons(); }
-            speakRinGoogle(clean, msgId, eff);
-        };
-        await audio.play();
+        await playVoiceAudio(audio, url, clean, msgId, seq, eff, false);
     } catch (e) {
         if (seq !== speakSeq) return;
+        setVoiceLoading(msgId, false);
         speakRinGoogle(clean, msgId, eff);
     }
 }
 function speakRinGoogle(clean, msgId, eff) {
     if (typeof speechSynthesis === "undefined" ||
         typeof SpeechSynthesisUtterance === "undefined") {
+        setVoiceLoading(msgId, false); // v2.12: matikan status loading player
         showToast("Browser ini tidak mendukung suara");
         return;
     }
@@ -2430,9 +2433,10 @@ function speakRinGoogle(clean, msgId, eff) {
     if (v) u.voice = v;
     speakingMsgId = msgId || null;
     markSpeakingButtons();
-    u.onstart = function () { setSpeaking3D(true); }; // v2.5: bibir 3D ikut bicara
+    u.onstart = function () { setSpeaking3D(true); startVoiceProgress(); }; // v2.5: bibir 3D ikut bicara
     u.onend = function () {
         setSpeaking3D(false);
+        stopVoiceProgress();
         if (speakingMsgId === msgId) {
             speakingMsgId = null;
             markSpeakingButtons();
@@ -2440,6 +2444,7 @@ function speakRinGoogle(clean, msgId, eff) {
     };
     u.onerror = function () {
         setSpeaking3D(false);
+        stopVoiceProgress();
         if (speakingMsgId === msgId) {
             speakingMsgId = null;
             markSpeakingButtons();
@@ -2449,6 +2454,7 @@ function speakRinGoogle(clean, msgId, eff) {
         speechSynthesis.speak(u);
     } catch (e) {
         setSpeaking3D(false);
+        stopVoiceProgress();
         speakingMsgId = null;
         markSpeakingButtons();
     }
@@ -2456,6 +2462,7 @@ function speakRinGoogle(clean, msgId, eff) {
 function stopSpeaking() {
     speakSeq++; // batalkan fetch /tts yang masih jalan
     setSpeaking3D(false); // v2.5: bibir 3D berhenti
+    stopVoiceProgress(); // v2.12: hentikan animasi progres player
     if (rinAudio) {
         try { rinAudio.pause(); } catch (e) {}
         rinAudio = null;
@@ -2473,6 +2480,245 @@ function markSpeakingButtons() {
         b.classList.toggle("speaking", !!on);
         b.textContent = on ? "⏹️" : "🔊";
     });
+    markVoicePlayers(); // v2.12: sinkronkan juga player pesan suara
+}
+
+/* =================================================================
+   15d2. Pesan suara ala WhatsApp (v2.12)
+   Balasan Rin tampil seperti voice message: tombol play bundar,
+   waveform batang, label durasi. Putar memakai jalur /tts yang sama
+   (speakRinElevenLabs + fallback Google); audio di-cache per pesan
+   supaya putar ulang tidak memanggil /tts lagi. Tidak ada aset baru,
+   tidak ada perubahan Worker; gaya player disuntik dari JS supaya
+   tetap script.js-only.
+   ================================================================ */
+var VOICE_BARS = 44; // jumlah batang waveform (ala WhatsApp ~40-50)
+var voiceCache = {}; // msgId -> { url, blob, text, duration, peaks, source }
+var voiceProgressTimer = null; // interval pemutar: batang played + label elapsed
+var voiceStyleInjected = false;
+// Warna mengikuti bubble Rin: tombol pakai --primary (seperti bubble user),
+// batang belum diputar --muted (pudar), batang sudah diputar --primary.
+var VOICE_PLAYER_CSS = [
+    ".voice-player{display:flex;align-items:center;gap:10px;margin-top:10px;min-width:190px}",
+    ".voice-play{flex-shrink:0;width:34px;height:34px;padding:0;border:0;border-radius:50%;background:var(--primary);color:#fff;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer}",
+    ".voice-play:active{opacity:.8}",
+    ".voice-wave{flex:1;display:flex;align-items:center;gap:2px;height:32px;min-width:0}",
+    ".voice-bar{flex:0 0 3px;width:3px;min-height:3px;background:var(--muted);opacity:.45;border-radius:2px}",
+    ".voice-bar.played{background:var(--primary);opacity:1}",
+    ".voice-player.playing .voice-bar:not(.played){animation:voiceBarPulse .9s ease-in-out infinite}",
+    ".voice-player.playing .voice-bar:nth-child(3n):not(.played){animation-delay:.15s}",
+    ".voice-player.playing .voice-bar:nth-child(4n):not(.played){animation-delay:.3s}",
+    ".voice-dur{flex-shrink:0;font-size:11px;color:var(--muted);min-width:28px;text-align:right}",
+    "@keyframes voiceBarPulse{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.3)}}"
+].join("");
+function formatVoiceDuration(sec) {
+    sec = Math.max(0, Math.round(sec || 0));
+    return Math.floor(sec / 60) + ":" + ("0" + (sec % 60)).slice(-2);
+}
+function estimateVoiceDuration(clean) {
+    let n = String(clean || "").replace(/\s+/g, " ").trim().length;
+    return Math.max(1, Math.round(n / 14)); // ~14 karakter/detik untuk suara Indonesia
+}
+function voiceHash(s) {
+    let h = 0;
+    s = String(s || "");
+    for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    return Math.abs(h);
+}
+function voiceDecorativePeaks(count, seed) {
+    count = count || VOICE_BARS;
+    let peaks = [];
+    let s = (seed || 0) + 7;
+    for (let i = 0; i < count; i++) {
+        s = (s * 9301 + 49297) % 233280;
+        let r = s / 233280;
+        peaks.push(Math.min(1, Math.max(0.15, 0.25 + 0.65 * Math.abs(Math.sin(i * 0.9 + r * 3)))));
+    }
+    return peaks;
+}
+function voiceWavePeaks(buffer, count) {
+    count = count || VOICE_BARS;
+    let ch = null;
+    try { ch = buffer && buffer.getChannelData ? buffer.getChannelData(0) : null; } catch (e) { ch = null; }
+    if (!ch || !ch.length) return voiceDecorativePeaks(count, 0);
+    let peaks = [];
+    let per = Math.max(1, Math.floor(ch.length / count));
+    let step = Math.max(1, Math.floor(per / 16));
+    for (let i = 0; i < count; i++) {
+        let max = 0;
+        let start = i * per;
+        let end = Math.min(ch.length, start + per);
+        for (let j = start; j < end; j += step) {
+            let v = ch[j] < 0 ? -ch[j] : ch[j];
+            if (v > max) max = v;
+        }
+        peaks.push(Math.min(1, Math.max(0.08, max)));
+    }
+    return peaks;
+}
+function injectVoicePlayerStyle() {
+    if (voiceStyleInjected) return;
+    if (typeof document === "undefined" || !document.createElement) return;
+    try {
+        let st = document.createElement("style");
+        st.textContent = VOICE_PLAYER_CSS;
+        if (document.head && document.head.appendChild) document.head.appendChild(st);
+        else if (document.body && document.body.appendChild) document.body.appendChild(st);
+        else if (document.documentElement && document.documentElement.appendChild) document.documentElement.appendChild(st);
+        else return;
+        voiceStyleInjected = true;
+    } catch (e) {}
+}
+function buildVoicePlayer(text, msgId) {
+    injectVoicePlayerStyle();
+    let clean = stripSpeechMarkup(text);
+    let entry = (msgId && voiceCache[msgId]) || null;
+    let peaks = (entry && entry.peaks) || voiceDecorativePeaks(VOICE_BARS, voiceHash(msgId || text));
+    let player = document.createElement("div");
+    player.className = "voice-player";
+    player.dataset.msgId = msgId || "";
+    let playBtn = document.createElement("button");
+    playBtn.className = "voice-play";
+    playBtn.textContent = "▶";
+    playBtn.dataset.msgId = msgId || "";
+    playBtn.onclick = function () { toggleVoiceBubble(msgId, text); };
+    player.appendChild(playBtn);
+    let wave = document.createElement("div");
+    wave.className = "voice-wave";
+    for (let i = 0; i < VOICE_BARS; i++) {
+        let bar = document.createElement("span");
+        bar.className = "voice-bar";
+        bar.style.height = Math.round((peaks[i] || 0.3) * 100) + "%";
+        wave.appendChild(bar);
+    }
+    player.appendChild(wave);
+    let dur = document.createElement("span");
+    dur.className = "voice-dur";
+    dur.textContent = (entry && entry.duration) ? formatVoiceDuration(entry.duration) : formatVoiceDuration(estimateVoiceDuration(clean));
+    player.appendChild(dur);
+    return player;
+}
+function voicePlayerEl(msgId) {
+    if (typeof document === "undefined" || !document.querySelectorAll || !msgId) return null;
+    let found = null;
+    document.querySelectorAll(".voice-player").forEach(function (p) {
+        if (p.dataset && p.dataset.msgId === msgId) found = p;
+    });
+    return found;
+}
+function setVoiceLoading(msgId, on) {
+    let p = voicePlayerEl(msgId);
+    if (!p) return;
+    p.classList.toggle("loading", !!on);
+    let btn = p.querySelector(".voice-play");
+    if (btn) btn.textContent = on ? "…" : ((speakingMsgId === msgId) ? "⏸" : "▶");
+}
+function refreshVoicePlayer(msgId) {
+    let p = voicePlayerEl(msgId);
+    if (!p) return;
+    let entry = voiceCache[msgId];
+    if (!entry) return;
+    let bars = p.querySelectorAll(".voice-bar");
+    if (entry.peaks) bars.forEach(function (b, i) {
+        if (entry.peaks[i] !== undefined) b.style.height = Math.round(entry.peaks[i] * 100) + "%";
+    });
+    let dur = p.querySelector(".voice-dur");
+    if (dur && entry.duration) dur.textContent = formatVoiceDuration(entry.duration);
+}
+function markVoicePlayers() {
+    if (typeof document === "undefined" || !document.querySelectorAll) return;
+    document.querySelectorAll(".voice-player").forEach(function (p) {
+        let id = (p.dataset && p.dataset.msgId) || "";
+        let playing = !!(speakingMsgId && id && speakingMsgId === id);
+        p.classList.toggle("playing", playing);
+        p.classList.remove("loading");
+        let btn = p.querySelector(".voice-play");
+        if (btn) btn.textContent = playing ? "⏸" : "▶";
+        let entry = id && voiceCache[id];
+        let bars = p.querySelectorAll(".voice-bar");
+        let dur = p.querySelector(".voice-dur");
+        if (playing && rinAudio && entry && entry.duration) {
+            let t = rinAudio.currentTime || 0;
+            let played = Math.floor((t / entry.duration) * bars.length);
+            bars.forEach(function (b, i) { b.classList.toggle("played", i < played); });
+            if (dur) dur.textContent = formatVoiceDuration(t);
+        } else {
+            bars.forEach(function (b) { b.classList.remove("played"); });
+            if (dur && entry && entry.duration) dur.textContent = formatVoiceDuration(entry.duration);
+        }
+    });
+}
+function startVoiceProgress() {
+    stopVoiceProgress();
+    if (typeof setInterval === "undefined") return;
+    voiceProgressTimer = setInterval(function () {
+        if (!speakingMsgId) { stopVoiceProgress(); return; }
+        markVoicePlayers();
+    }, 150);
+}
+function stopVoiceProgress() {
+    if (voiceProgressTimer !== null) {
+        try { clearInterval(voiceProgressTimer); } catch (e) {}
+        voiceProgressTimer = null;
+    }
+}
+function toggleVoiceBubble(msgId, text) {
+    if (speakingMsgId && msgId && speakingMsgId === msgId) { stopSpeaking(); return; }
+    speakRin(text, msgId);
+}
+function voiceCachePut(msgId, entry) {
+    if (!msgId) return;
+    let keys = Object.keys(voiceCache);
+    if (!voiceCache[msgId] && keys.length >= 10) { // batasi memori: buang yang paling lama
+        let old = voiceCache[keys[0]];
+        if (old && old.url && typeof URL !== "undefined" && URL.revokeObjectURL) {
+            try { URL.revokeObjectURL(old.url); } catch (e) {}
+        }
+        delete voiceCache[keys[0]];
+    }
+    voiceCache[msgId] = entry;
+}
+function decodeVoiceAudio(blob, msgId) {
+    try {
+        let AC = null;
+        if (typeof window !== "undefined") AC = window.AudioContext || window.webkitAudioContext || null;
+        if (!AC && typeof AudioContext !== "undefined") AC = AudioContext;
+        if (!AC || !blob || typeof blob.arrayBuffer !== "function") return; // tanpa AudioContext: pakai waveform dekoratif
+        let ctx = new AC();
+        blob.arrayBuffer().then(function (buf) {
+            return ctx.decodeAudioData(buf);
+        }).then(function (audioBuf) {
+            let entry = voiceCache[msgId];
+            if (!entry) return;
+            entry.duration = audioBuf.duration;
+            entry.peaks = voiceWavePeaks(audioBuf, VOICE_BARS);
+            refreshVoicePlayer(msgId);
+            try { if (ctx.close) ctx.close(); } catch (e) {}
+        }).catch(function () { /* gagal decode: tetap pakai waveform dekoratif */ });
+    } catch (e) {}
+}
+async function playVoiceAudio(audio, url, clean, msgId, seq, eff, keepUrl) {
+    if (seq !== speakSeq) return;
+    rinAudio = audio;
+    speakingMsgId = msgId || null;
+    markSpeakingButtons();
+    audio.onplay = function () { setSpeaking3D(true); startVoiceProgress(); }; // v2.5: bibir 3D ikut bicara
+    audio.onended = function () {
+        setSpeaking3D(false);
+        stopVoiceProgress();
+        if (!keepUrl) { try { URL.revokeObjectURL(url); } catch (e) {} }
+        if (rinAudio === audio) rinAudio = null;
+        if (speakingMsgId === msgId) { speakingMsgId = null; markSpeakingButtons(); }
+    };
+    audio.onerror = function () {
+        setSpeaking3D(false);
+        stopVoiceProgress();
+        if (!keepUrl) { try { URL.revokeObjectURL(url); } catch (e) {} }
+        if (rinAudio === audio) rinAudio = null;
+        if (speakingMsgId === msgId) { speakingMsgId = null; markSpeakingButtons(); }
+        speakRinGoogle(clean, msgId, eff);
+    };
+    await audio.play();
 }
 
 /* --- 15e. Input suara: STT (SpeechRecognition) --- */

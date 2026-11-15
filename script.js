@@ -2392,13 +2392,31 @@ async function speakRinElevenLabs(clean, msgId, seq, eff) {
             return;
         }
         setVoiceLoading(msgId, true); // v2.12: tombol play jadi "…" selama /tts diambil
-        let r = await fetch(WORKER_URL + "/tts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: clean.slice(0, 500), speed: (eff && eff.speed) || voiceSpeed, stability: (eff && eff.stability) || voiceStability })
-        });
-        if (seq !== speakSeq) return; // sudah di-Stop / bicara baru
-        if (!r || !r.ok) throw new Error("tts-http-" + (r && r.status));
+        // v2.12.1: coba /tts sekali lagi setelah 800 ms kalau gagal (jaringan
+        // seluler kadang putus sesaat). Stop / bicara baru membatalkan retry.
+        let r = null;
+        let ttsErr = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                r = await fetch(WORKER_URL + "/tts", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: clean.slice(0, 500), speed: (eff && eff.speed) || voiceSpeed, stability: (eff && eff.stability) || voiceStability })
+                });
+            } catch (e) {
+                r = null;
+                ttsErr = e;
+            }
+            if (seq !== speakSeq) return; // sudah di-Stop / bicara baru
+            if (r && r.ok) break;
+            // gagal: simpan error percobaan ini (bukan yang lama) untuk dilempar
+            ttsErr = r ? new Error("tts-http-" + r.status) : (ttsErr || new Error("tts-gagal"));
+            if (attempt === 0) {
+                await new Promise(function (res) { setTimeout(res, 800); });
+                if (seq !== speakSeq) return;
+            }
+        }
+        if (!r || !r.ok) throw (ttsErr || new Error("tts-gagal"));
         let ct = "";
         try { ct = (r.headers && r.headers.get("Content-Type")) || ""; } catch (e) {}
         if (ct && ct.indexOf("audio") === -1) throw new Error("tts-bukan-audio");
@@ -2410,10 +2428,16 @@ async function speakRinElevenLabs(clean, msgId, seq, eff) {
             decodeVoiceAudio(blob, msgId); // v2.12: isi durasi + waveform asli (async, tanpa blokir putar)
         }
         let audio = new Audio(url);
-        await playVoiceAudio(audio, url, clean, msgId, seq, eff, false);
+        // v2.12.1: URL yang disimpan di cache JANGAN dicabut saat putar
+        // selesai — dulu keepUrl=false sehingga URL mati setelah play pertama
+        // dan putar ulang jatuh ke Google. Hanya dicabut saat entri dibuang
+        // dari cache (voiceCachePut) atau kalau tidak ada msgId (tanpa cache).
+        await playVoiceAudio(audio, url, clean, msgId, seq, eff, !!msgId);
     } catch (e) {
         if (seq !== speakSeq) return;
         setVoiceLoading(msgId, false);
+        // v2.12.1: beri tahu user suaranya jadi suara perangkat, bukan suara Rin
+        showToast("Suara Rin gagal dimuat — pakai suara perangkat");
         speakRinGoogle(clean, msgId, eff);
     }
 }
@@ -2716,9 +2740,25 @@ async function playVoiceAudio(audio, url, clean, msgId, seq, eff, keepUrl) {
         if (!keepUrl) { try { URL.revokeObjectURL(url); } catch (e) {} }
         if (rinAudio === audio) rinAudio = null;
         if (speakingMsgId === msgId) { speakingMsgId = null; markSpeakingButtons(); }
+        if (seq !== speakSeq) return; // v2.12.1: sudah di-Stop / fallback sudah jalan — jangan bicara dobel
+        // v2.12.1: beri tahu user suaranya jadi suara perangkat, bukan suara Rin
+        showToast("Suara Rin gagal dimuat — pakai suara perangkat");
         speakRinGoogle(clean, msgId, eff);
     };
-    await audio.play();
+    // v2.12.1: putar ulang sekali kalau play() ditolak (aktivasi kadang
+    // kedaluwarsa di HP); hanya untuk penolakan izin/abort — error lain
+    // langsung dilempar ke caller (fallback Google + toast).
+    try {
+        await audio.play();
+    } catch (e) {
+        if (e && (e.name === "NotAllowedError" || e.name === "AbortError")) {
+            await new Promise(function (res) { setTimeout(res, 300); });
+            if (seq !== speakSeq) return;
+            await audio.play(); // gagal lagi -> throw, ditangani caller
+        } else {
+            throw e;
+        }
+    }
 }
 
 /* --- 15e. Input suara: STT (SpeechRecognition) --- */

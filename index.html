@@ -23,14 +23,14 @@
 <div class="chat-container">
 
     <div class="chat-header">
-        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        <button class="menu-btn" onclick="toggleSidebar()"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><rect x="3" y="6" width="18" height="2" rx="1"/><rect x="3" y="11" width="18" height="2" rx="1"/><rect x="3" y="16" width="18" height="2" rx="1"/></svg></button>
         <img src="rin.jpg" class="header-avatar" alt="Rin-san">
         <div class="header-info">
             <h1>Rin-san AI</h1>
             <p class="subtitle">semoga suka</p>
         </div>
-        <button class="menu-btn" onclick="toggleMsgSearch()" title="Cari pesan">🔍</button>
-        <button class="settings-btn" onclick="toggleSettings()">⚙️</button>
+        <button class="menu-btn" onclick="toggleMsgSearch()" title="Cari pesan"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><path fill-rule="evenodd" d="M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11z"/><rect x="15.8" y="15.8" width="6.5" height="2.6" rx="1.3" transform="rotate(45 15.8 15.8)"/></svg></button>
+        <button class="settings-btn" onclick="toggleSettings()"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><circle cx="12" cy="12" r="3.4"/><rect x="11" y="2.6" width="2" height="3.6" rx="1"/><rect x="11" y="2.6" width="2" height="3.6" rx="1" transform="rotate(45 12 12)"/><rect x="11" y="2.6" width="2" height="3.6" rx="1" transform="rotate(90 12 12)"/><rect x="11" y="2.6" width="2" height="3.6" rx="1" transform="rotate(135 12 12)"/><rect x="11" y="17.8" width="2" height="3.6" rx="1"/><rect x="11" y="17.8" width="2" height="3.6" rx="1" transform="rotate(45 12 12)"/><rect x="11" y="17.8" width="2" height="3.6" rx="1" transform="rotate(90 12 12)"/><rect x="11" y="17.8" width="2" height="3.6" rx="1" transform="rotate(135 12 12)"/></svg></button>
     </div>
 
     <div id="msgSearchBar" class="msg-search-bar">
@@ -49,10 +49,10 @@
     </div>
 
     <div class="input-area">
-        <button class="attach-btn" onclick="document.getElementById('fileInput').click()">📎</button>
+        <button class="attach-btn" onclick="document.getElementById('fileInput').click()"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><path d="M17.5 6.5v9a4.5 4.5 0 0 1-9 0V6a3 3 0 0 1 6 0v8.5a1.5 1.5 0 0 1-3 0V7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
         <input type="file" id="fileInput" accept="image/*" hidden>
         <input type="text" id="userInput" placeholder="Ketik pesan...">
-        <button id="micBtn" class="mic-btn" onclick="toggleMic()" title="Input suara">🎤</button>
+        <button id="micBtn" class="mic-btn" onclick="toggleMic()" title="Input suara"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 1 13 0h-2a4.5 4.5 0 0 1-9 0z"/><rect x="11" y="17.5" width="2" height="3.5"/></svg></button>
         <button id="sendBtn" onclick="sendMessage()">Kirim</button>
     </div>
 
@@ -78,7 +78,7 @@
         <button class="theme-dot" data-name="mocha" style="background:#261e19" onclick="setTheme('mocha')"></button>
     </div>
 
-    <button class="new-chat-btn" onclick="newChat()">✏️ Obrolan baru</button>
+    <button class="new-chat-btn" onclick="newChat()"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/></svg> Obrolan baru</button>
 </div>
 
 <div id="settingsOverlay" class="sidebar-overlay" onclick="toggleSettings()"></div>
@@ -89,7 +89,7 @@
     </div>
 
     <button id="accPersonaHead" class="acc-head" onclick="toggleAcc('persona')">
-        <span>Kepribadian 🎭</span><span class="acc-arrow">&gt;</span>
+        <span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="10" r="1.4"/><circle cx="15.5" cy="10" r="1.4"/><path d="M8 14.5a5 5 0 0 0 8 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Kepribadian</span><span class="acc-arrow">&gt;</span>
     </button>
     <div id="accPersona" class="acc-body">
         <div id="personaChips" class="persona-chips"></div>
@@ -98,7 +98,7 @@
     </div>
 
     <button id="accSceneHead" class="acc-head" onclick="toggleAcc('scene')">
-        <span>Adegan 🎬</span><span class="acc-arrow">&gt;</span>
+        <span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="7" y="8.5" width="2.5" height="2.5"/><rect x="7" y="13" width="2.5" height="2.5"/><rect x="14.5" y="8.5" width="2.5" height="2.5"/><rect x="14.5" y="13" width="2.5" height="2.5"/></svg> Adegan</span><span class="acc-arrow">&gt;</span>
     </button>
     <div id="accScene" class="acc-body">
         <p class="backup-note">Pilih adegan, Rin bakal ngobrol dari suasana itu di chat khusus. Balasan Rin tetap pakai kepribadian yang aktif.</p>
@@ -106,7 +106,7 @@
     </div>
 
     <button id="accMemoryHead" class="acc-head" onclick="toggleAcc('memory')">
-        <span>Ingatan Rin 🧠</span><span class="acc-arrow">&gt;</span>
+        <span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg> Ingatan Rin</span><span class="acc-arrow">&gt;</span>
     </button>
     <div id="accMemory" class="acc-body">
         <button id="memoryToggle" class="memory-toggle" onclick="toggleMemory()"></button>
@@ -119,13 +119,13 @@
     </div>
 
     <button id="accBackupHead" class="acc-head" onclick="toggleAcc('backup')">
-        <span>Suara &amp; cadangan 💾</span><span class="acc-arrow">&gt;</span>
+        <span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><path fill-rule="evenodd" d="M5 3h12l4 4v14H5zM7 5h6v4H7zM8 13h8v6H8z"/></svg> Suara &amp; cadangan</span><span class="acc-arrow">&gt;</span>
     </button>
     <div id="accBackup" class="acc-body">
         <button id="voiceToggle" class="memory-toggle" onclick="toggleVoice()"></button>
-        <p class="backup-note">Suara Rin dibacakan pakai suara Rin sendiri (ElevenLabs); kalau gagal dimuat, pakai suara di perangkatmu. Tombol ▶ di tiap balasan Rin memutar suaranya, tombol 🎤 di kolom ketik untuk input suara.</p>
-        <button class="acc-save" onclick="exportBackup()">⬇️ Ekspor cadangan (JSON)</button>
-        <button class="acc-save" onclick="triggerImportBackup()">⬆️ Impor cadangan (JSON)</button>
+        <p class="backup-note">Suara Rin dibacakan pakai suara Rin sendiri (ElevenLabs); kalau gagal dimuat, pakai suara di perangkatmu. Tombol putar di tiap balasan Rin memutar suaranya, tombol mikrofon di kolom ketik untuk input suara.</p>
+        <button class="acc-save" onclick="exportBackup()"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><path d="M12 21l-5-5h3V9h4v7h3z"/><rect x="5" y="19" width="14" height="2"/></svg> Ekspor cadangan (JSON)</button>
+        <button class="acc-save" onclick="triggerImportBackup()"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><path d="M12 3l5 5h-3v7h-4V8H7z"/><rect x="5" y="19" width="14" height="2"/></svg> Impor cadangan (JSON)</button>
         <input type="file" id="importFile" accept=".json,application/json" hidden onchange="importBackupFile(this)">
     </div>
 </div>
@@ -173,9 +173,9 @@
     <div class="confirm-card">
         <p id="menuPreview" class="menu-preview"></p>
         <div class="confirm-stack">
-            <button id="menuCopy" class="confirm-no" onclick="menuCopy()">📋 Salin</button>
-            <button id="menuEdit" class="confirm-no" onclick="menuEdit()">✏️ Edit</button>
-            <button id="menuDelete" class="confirm-no" onclick="menuDelete()">🗑️ Hapus</button>
+            <button id="menuCopy" class="confirm-no" onclick="menuCopy()"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><path d="M9 9h11v11H9z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15V4a1 1 0 0 1 1-1h9v2H7v10z"/></svg> Salin</button>
+            <button id="menuEdit" class="confirm-no" onclick="menuEdit()"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/></svg> Edit</button>
+            <button id="menuDelete" class="confirm-no" onclick="menuDelete()"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l1 13h9l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Hapus</button>
             <button class="confirm-no" onclick="closeMenu()">Batal</button>
         </div>
     </div>

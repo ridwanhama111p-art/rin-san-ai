@@ -47,6 +47,56 @@ const MOOD_VOICE = {
     serius:   { speed: 0, stability: 0.05 }
 };
 
+
+/* v2.13: ikon SVG inline pengganti emoji di UI chrome.
+   Satu helper, semua ikon fill="currentColor" (garis pakai
+   stroke="currentColor") supaya warnanya ikut warna teks tombolnya.
+   Hanya tampilan tombol yang berubah — perilaku, handler, dan state
+   (termasuk voice path v2.12.1) tidak disentuh. */
+const SVG_ICONS = {
+    menu: '<rect x="3" y="6" width="18" height="2" rx="1"/><rect x="3" y="11" width="18" height="2" rx="1"/><rect x="3" y="16" width="18" height="2" rx="1"/>',
+    search: '<path fill-rule="evenodd" d="M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11z"/><rect x="15.8" y="15.8" width="6.5" height="2.6" rx="1.3" transform="rotate(45 15.8 15.8)"/>',
+    settings: '<circle cx="12" cy="12" r="3.4"/><rect x="11" y="2.6" width="2" height="3.6" rx="1"/><rect x="11" y="2.6" width="2" height="3.6" rx="1" transform="rotate(45 12 12)"/><rect x="11" y="2.6" width="2" height="3.6" rx="1" transform="rotate(90 12 12)"/><rect x="11" y="2.6" width="2" height="3.6" rx="1" transform="rotate(135 12 12)"/><rect x="11" y="17.8" width="2" height="3.6" rx="1"/><rect x="11" y="17.8" width="2" height="3.6" rx="1" transform="rotate(45 12 12)"/><rect x="11" y="17.8" width="2" height="3.6" rx="1" transform="rotate(90 12 12)"/><rect x="11" y="17.8" width="2" height="3.6" rx="1" transform="rotate(135 12 12)"/>',
+    attach: '<path d="M17.5 6.5v9a4.5 4.5 0 0 1-9 0V6a3 3 0 0 1 6 0v8.5a1.5 1.5 0 0 1-3 0V7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 1 13 0h-2a4.5 4.5 0 0 1-9 0z"/><rect x="11" y="17.5" width="2" height="3.5"/>',
+    pencil: '<path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/>',
+    smile: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="10" r="1.4"/><circle cx="15.5" cy="10" r="1.4"/><path d="M8 14.5a5 5 0 0 0 8 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    film: '<rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="7" y="8.5" width="2.5" height="2.5"/><rect x="7" y="13" width="2.5" height="2.5"/><rect x="14.5" y="8.5" width="2.5" height="2.5"/><rect x="14.5" y="13" width="2.5" height="2.5"/>',
+    bookmark: '<path d="M6 3h12v18l-6-4.5L6 21z"/>',
+    save: '<path fill-rule="evenodd" d="M5 3h12l4 4v14H5zM7 5h6v4H7zM8 13h8v6H8z"/>',
+    download: '<path d="M12 21l-5-5h3V9h4v7h3z"/><rect x="5" y="19" width="14" height="2"/>',
+    upload: '<path d="M12 3l5 5h-3v7h-4V8H7z"/><rect x="5" y="19" width="14" height="2"/>',
+    copy: '<path d="M9 9h11v11H9z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15V4a1 1 0 0 1 1-1h9v2H7v10z"/>',
+    trash: '<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l1 13h9l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    video: '<rect x="2" y="7" width="13" height="10" rx="2"/><path d="M15 10.5l7-3.5v10l-7-3.5z"/>',
+    speaker: '<path d="M4 9v6h4l5 5V4L8 9z"/><path d="M16.5 8.7a4.8 4.8 0 0 1 0 6.6M18.8 6a8.6 8.6 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    play: '<path d="M7 4l13 8-13 8z"/>',
+    pause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
+    stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
+    school: '<path fill-rule="evenodd" d="M12 2L1 8h22zM4 9h16v11H4zM10 13h4v7h-4z"/>',
+    coffee: '<path d="M4 9h16v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M20 10h1.5a2.5 2.5 0 0 1 0 5H20z"/><path d="M8 3h2M13 3h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    home: '<path d="M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3z"/>',
+    book: '<path d="M12 6C10 4.5 7 4 3 4v15c4 0 7 .5 9 2 2-1.5 5-2 9-2V4c-4 0-7 .5-9 2zm-1 1.6v11.9M13 7.6v11.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+    rain: '<circle cx="8" cy="10.5" r="4"/><circle cx="13" cy="7.5" r="4.5"/><circle cx="17.5" cy="10.5" r="3.5"/><rect x="4.5" y="10.5" width="16" height="3.5" rx="1.5"/><rect x="8" y="17" width="2" height="4.5" rx="1"/><rect x="12" y="17" width="2" height="4.5" rx="1"/><rect x="16" y="17" width="2" height="4.5" rx="1"/>',
+    star: '<path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z"/>',
+    check: '<path d="M9.5 16.5L5 12l-1.4 1.4L9.5 19.3 20 8.8 18.6 7.4z"/>',
+};
+function icon(name, size) {
+    var inner = SVG_ICONS[name] || "";
+    var s = size || 20;
+    return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle">' + inner + '</svg>';
+}
+function setVoicePlayIcon(btn, state) {
+    // v2.13: status tombol play bubble suara — "play" | "pause" | "loading".
+    // "loading" tetap teks "…" (bukan SVG); play/pause pakai SVG.
+    // dataset.state adalah sumber kebenaran status; tidak ada lagi yang
+    // membaca textContent tombol ini untuk tahu statusnya.
+    if (!btn) return;
+    btn.dataset.state = state;
+    if (state === "loading") { btn.textContent = "…"; return; }
+    btn.innerHTML = icon(state === "pause" ? "pause" : "play");
+}
+
 let voiceOn = false; // v2: baca otomatis balasan Rin
 let voiceSpeed = 1; // v2.9.1: kecepatan suara Rin (dikirim ke /tts; dipakai juga fallback Google)
 let voiceSpeedWrapEl = null; // v2.9.1: pembungkus slider kecepatan suara (dibangun sekali)
@@ -100,27 +150,27 @@ const PRESETS = [
    persona yang dikirim ke Worker (lihat getReply), jadi Rin ngobrol
    dari suasana adegan itu tanpa perlu ubah Worker. */
 const SCENES = [
-    { id: "sekolah", icon: "🏫", name: "Di Sekolah", desc: "Teman sebangku di kelas, jam istirahat",
+    { id: "sekolah", icon: "school", name: "Di Sekolah", desc: "Teman sebangku di kelas, jam istirahat",
       mood: "santai",
       prompt: "Adegan: kalian berdua di sekolah, di kelas saat jam istirahat. Rin adalah teman sebangkumu. Suasana kelas ramai, tapi obrolan kalian berdua terasa seperti dunia sendiri. Rin tetap tsundere seperti biasa, pura-pura cuek padahal senang diajak ngobrol.",
       opening: "*Jam istirahat. Kelas ramai, tapi Rin tetap duduk di bangkunya, pura-pura sibuk membaca buku. Begitu kamu menoleh ke arahnya, dia langsung membuang muka...*\n\nA-apa lihat-lihat? Bukan berarti aku nunggu kamu ngajak ngobrol, ya!" },
-    { id: "kafe", icon: "☕", name: "Di Kafe", desc: "Nongkrong bareng sepulang sekolah",
+    { id: "kafe", icon: "coffee", name: "Di Kafe", desc: "Nongkrong bareng sepulang sekolah",
       mood: "santai",
       prompt: "Adegan: kalian berdua di kafe kecil sepulang sekolah. Rin duduk di seberang meja, menyeruput minuman favoritnya. Suasananya santai dan hangat, cocok buat ngobrol panjang.",
       opening: "*Sore hari di kafe kecil dekat sekolah. Aroma kopi memenuhi ruangan. Rin duduk di seberang meja, menyeruput minumannya pelan...*\n\nHmph, jangan salah paham. Aku ke sini bukan karena mau ketemu kamu, cuma... kebetulan saja." },
-    { id: "rumah", icon: "🏠", name: "Di Rumah", desc: "Santai di rumah, malam hari",
+    { id: "rumah", icon: "home", name: "Di Rumah", desc: "Santai di rumah, malam hari",
       mood: "malu",
       prompt: "Adegan: kalian berdua di rumah pada malam hari, suasana tenang dan nyaman. Rin lagi santai, mungkin sambil minum teh hangat. Ngobrolnya pelan dan hangat, seperti di rumah sendiri.",
       opening: "*Malam hari, tepatnya jam 8 malam. Kamu bersiap untuk tidur. Saat hampir menarik selimut, tiba-tiba pintu kamarmu terbuka pelan dan muncullah Rin, menggenggam bantal; dengan wajah gelisah dia berkata...*\n\nA-anu... boleh tidak aku tidur di sini malam ini? B-bukan berarti aku takut tidur sendiri, ya! Cuma... kamarmu lebih hangat..." },
-    { id: "perpus", icon: "📚", name: "Perpustakaan", desc: "Belajar bareng, jangan berisik",
+    { id: "perpus", icon: "book", name: "Perpustakaan", desc: "Belajar bareng, jangan berisik",
       mood: "serius",
       prompt: "Adegan: kalian berdua di perpustakaan sekolah, belajar bareng. Harus bicara pelan-pelan biar tidak dimarahi pustakawan. Rin pura-pura fokus belajar padahal lebih sibuk memperhatikanmu.",
       opening: "*Perpustakaan sekolah yang sunyi. Di antara rak-rak buku, Rin duduk di seberang meja, tumpukan buku di depannya...*\n\nSsst... pelan-pelan! Kalau kita ketahuan berisik, pustakawan bisa marah. ...Tapi, kamu mau bantu aku cari buku ini, kan?" },
-    { id: "halte", icon: "🌧️", name: "Halte Hujan", desc: "Kehujanan di halte bus",
+    { id: "halte", icon: "rain", name: "Halte Hujan", desc: "Kehujanan di halte bus",
       mood: "kesal",
       prompt: "Adegan: hujan deras, kalian berdua berteduh di halte bus menunggu hujan reda. Rin kedinginan tapi gengsi mengakuinya. Suasananya dingin, basah, dan romantis dengan caranya sendiri.",
       opening: "*Hujan deras mengguyur halte bus. Kamu berteduh di sana, dan tak lama kemudian Rin datang berlari, basah kuyup...*\n\nHujan sialan ini... Hmph, jangan lihat aku kayak gitu! Aku cuma... kebetulan berteduh di sini juga." },
-    { id: "festival", icon: "🎆", name: "Festival Sekolah", desc: "Stand kelas dan kembang api",
+    { id: "festival", icon: "star", name: "Festival Sekolah", desc: "Stand kelas dan kembang api",
       mood: "senang",
       prompt: "Adegan: festival sekolah sedang berlangsung, ramai dan meriah. Rin menjaga stand kelas bersama kamu. Ada lampu-lampu, jajanan, dan nanti malam ada kembang api. Rin semangat tapi tetap gengsi kalau ketahuan senang.",
       opening: "*Festival sekolah sedang ramai-ramainya. Lampu-lampu warna-warni, aroma jajanan, dan suara tawa di mana-mana. Rin berdiri di depan stand kelas, memakai celemek...*\n\nK-kamu datang juga... Ayo, coba dagangan stand kami! Bukan berarti aku masak khusus buat kamu atau apa..." }
@@ -323,9 +373,9 @@ function fallbackCopy(text) {
 }
 function copyText(text, btn) {
     function done() {
-        btn.textContent = "✅ Tersalin";
+        btn.innerHTML = icon("check") + " Tersalin";
         setTimeout(function () {
-            btn.textContent = "📋 Salin";
+            btn.innerHTML = icon("copy") + " Salin";
         }, 1500);
     }
 
@@ -840,7 +890,7 @@ function addMessage(name, text, type, savedTime, imgSrc, animate, msgId, mood) {
     if (type === "rin" && text) {
         let copyBtn = document.createElement("button");
         copyBtn.className = "copy-btn msg-act";
-        copyBtn.textContent = "📋 Salin";
+        copyBtn.innerHTML = icon("copy") + " Salin";
         copyBtn.onclick = function () {
             copyText(text, copyBtn);
         };
@@ -849,7 +899,7 @@ function addMessage(name, text, type, savedTime, imgSrc, animate, msgId, mood) {
         // v2: tombol speaker — putar sekali balasan ini (jalan walau toggle mati)
         let speakBtn = document.createElement("button");
         speakBtn.className = "copy-btn msg-act speak-btn";
-        speakBtn.textContent = "🔊";
+        speakBtn.innerHTML = icon("speaker");
         speakBtn.dataset.msgId = msgId || "";
         speakBtn.onclick = function () {
             speakRin(text, msgId);
@@ -937,7 +987,7 @@ function saveEdit(resend) {
     saveStore();
     rerender();
     renderList();
-    showToast("✏️ Pesan diubah");
+    showToast("Pesan diubah");
 }
 function deleteMessage(id) {
     if (sending) {
@@ -1007,9 +1057,9 @@ function openMsgMenu(id, row, text) {
     let preview = text || "📷 Foto";
     $("menuPreview").textContent = preview.length > 60 ? preview.slice(0, 60) + "…" : preview;
     $("menuCopy").style.display = text ? "" : "none";
-    $("menuCopy").textContent = "📋 Salin";
+    $("menuCopy").innerHTML = icon("copy") + " Salin";
     $("menuEdit").style.display = id ? "" : "none";
-    $("menuDelete").textContent = "🗑️ Hapus";
+    $("menuDelete").innerHTML = icon("trash") + " Hapus";
     $("msgMenu").classList.add("show");
 
     if (navigator.vibrate) navigator.vibrate(20);
@@ -1054,7 +1104,7 @@ function updateSendButton() {
     let b = $("sendBtn");
     if (!b) return;
     if (sending) {
-        b.textContent = "\u23f9 Stop";
+        b.innerHTML = icon("stop") + " Stop";
         b.onclick = stopReply;
     } else {
         b.textContent = "Kirim";
@@ -1152,7 +1202,7 @@ async function getReply(text, image) {
 
         if (memoryOn && Array.isArray(data.memories)) {
             let added = data.memories.filter(function (f) { return addMemory(f); });
-            if (added.length) showToast("🧠 Rin mengingat: " + added.join(", "));
+            if (added.length) showToast("Rin mengingat: " + added.join(", "));
         }
         return data.reply;
     } catch (err) {
@@ -1310,7 +1360,7 @@ function commitPersona(next) {
         localStorage.setItem(PERSONA_KEY, JSON.stringify(persona));
     } catch (e) {}
     saveStore();
-    showToast("✅ Kepribadian disimpan");
+    showToast("Kepribadian disimpan");
 }
 function resetActiveChat() {
     let chat = getActive();
@@ -1339,7 +1389,7 @@ function applyPersona(clearOld) {
 
     if (clearOld) {
         resetActiveChat();
-        showToast("🗑️ Chat lama dihapus, kepribadian baru dipakai");
+        showToast("Chat lama dihapus, kepribadian baru dipakai");
     } else {
         let c = makeChat();
         store.chats.push(c);
@@ -1347,7 +1397,7 @@ function applyPersona(clearOld) {
         saveStore();
         renderChat();
         renderList();
-        showToast("✨ Obrolan baru dengan kepribadian baru");
+        showToast("Obrolan baru dengan kepribadian baru");
     }
 }
 function cancelPersona() {
@@ -1386,7 +1436,7 @@ function addMemory(text) {
 }
 function renderMemory() {
     let toggle = $("memoryToggle");
-    toggle.textContent = memoryOn ? "Ingatan: Aktif ✅" : "Ingatan: Mati ⏸️";
+    toggle.textContent = memoryOn ? "Ingatan: Aktif" : "Ingatan: Mati";
     toggle.classList.toggle("on", memoryOn);
 
     let list = $("memoryList");
@@ -1449,7 +1499,7 @@ function clearMemory() {
     saveMemory();
     renderMemory();
     toggleSettings(false);
-    showToast("🧠 Semua ingatan dihapus");
+    showToast("Semua ingatan dihapus");
 }
 
 /* =================================================================
@@ -1513,9 +1563,9 @@ function renderScenes() {
     SCENES.forEach(function (sc) {
         let b = document.createElement("button");
         b.className = "scene-btn" + (active && active.scene === sc.id ? " active" : "");
-        let icon = document.createElement("span");
-        icon.className = "scene-icon";
-        icon.textContent = sc.icon;
+        let iconEl = document.createElement("span");
+        iconEl.className = "scene-icon";
+        iconEl.innerHTML = icon(sc.icon);
         let wrap = document.createElement("span");
         wrap.className = "scene-text";
         let name = document.createElement("span");
@@ -1526,7 +1576,7 @@ function renderScenes() {
         desc.textContent = sc.desc;
         wrap.appendChild(name);
         wrap.appendChild(desc);
-        b.appendChild(icon);
+        b.appendChild(iconEl);
         b.appendChild(wrap);
         b.onclick = function () { startSceneChat(sc.id); };
         box.appendChild(b);
@@ -1570,11 +1620,11 @@ function startSceneChat(id) {
         renderChat();
         renderList();
         toggleSettings(false);
-        showToast("🎬 Lanjut adegan " + sc.name);
+        showToast("Lanjut adegan " + sc.name);
         return;
     }
     let c = makeChat();
-    c.title = sc.icon + " " + sc.name;
+    c.title = sc.name;
     c.scene = id;
     c.messages.push(makeOpening(sc));
     store.chats.push(c);
@@ -1583,7 +1633,7 @@ function startSceneChat(id) {
     renderChat();
     renderList();
     toggleSettings(false);
-    showToast("🎬 Adegan " + sc.name + " dimulai!");
+    showToast("Adegan " + sc.name + " dimulai!");
 }
 
 /* =================================================================
@@ -1592,18 +1642,18 @@ function startSceneChat(id) {
 
 function faceTable() {
     return {
-        kesal:   { r: 0, c: 0, label: "Kesal 😤" },
-        santai:  { r: 0, c: 1, label: "Santai 😌" },
-        senang:  { r: 0, c: 2, label: "Senang 😊" },
-        dingin:  { r: 0, c: 3, label: "Dingin 😐" },
-        malu:    { r: 1, c: 0, label: "Malu 😳" },
-        ngambek: { r: 1, c: 1, label: "Ngambek 😠" },
-        ngantuk: { r: 1, c: 2, label: "Ngantuk 😴" },
-        salting: { r: 1, c: 3, label: "Salting 🙈" },
-        bingung: { r: 2, c: 0, label: "Bingung ❓" },
-        panik:   { r: 2, c: 1, label: "Panik 😵" },
-        serius:  { r: 2, c: 2, label: "Serius 🤓" },
-        jahil:   { r: 2, c: 3, label: "Jahil 😜" }
+        kesal:   { r: 0, c: 0, label: "Kesal" },
+        santai:  { r: 0, c: 1, label: "Santai" },
+        senang:  { r: 0, c: 2, label: "Senang" },
+        dingin:  { r: 0, c: 3, label: "Dingin" },
+        malu:    { r: 1, c: 0, label: "Malu" },
+        ngambek: { r: 1, c: 1, label: "Ngambek" },
+        ngantuk: { r: 1, c: 2, label: "Ngantuk" },
+        salting: { r: 1, c: 3, label: "Salting" },
+        bingung: { r: 2, c: 0, label: "Bingung" },
+        panik:   { r: 2, c: 1, label: "Panik" },
+        serius:  { r: 2, c: 2, label: "Serius" },
+        jahil:   { r: 2, c: 3, label: "Jahil" }
     };
 }
 function faceInfo(mood) {
@@ -1743,7 +1793,7 @@ function renderProfile() {
     // v2.7: tombol Rin 3D di bawah Kebiasaan (paling bawah profil).
     let btn3d = document.createElement("button");
     btn3d.className = "profile-3d-btn";
-    btn3d.textContent = "🎥 Rin 3D";
+    btn3d.innerHTML = icon("video") + " Rin 3D";
     btn3d.onclick = openStage3D;
     body.appendChild(btn3d);
 }
@@ -2000,7 +2050,7 @@ function exportBackup() {
     a.click();
     a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    showToast("✅ Cadangan diunduh");
+    showToast("Cadangan diunduh");
 }
 function triggerImportBackup() {
     let f = $("importFile");
@@ -2113,7 +2163,7 @@ function doImportBackup() {
     renderList();
     renderMemory();
     toggleSettings(false);
-    showToast("✅ Cadangan berhasil diimpor");
+    showToast("Cadangan berhasil diimpor");
 }
 
 /* --- 15d. Suara Rin: TTS (speechSynthesis) --- */
@@ -2265,14 +2315,14 @@ function renderMoodVoiceToggle() {
         else return;
         moodVoiceToggleEl = b;
     }
-    moodVoiceToggleEl.textContent = moodVoiceOn ? "Nada ikut suasana hati: Aktif ✅" : "Nada ikut suasana hati: Mati ⏸️";
+    moodVoiceToggleEl.textContent = moodVoiceOn ? "Nada ikut suasana hati: Aktif" : "Nada ikut suasana hati: Mati";
     moodVoiceToggleEl.classList.toggle("on", moodVoiceOn);
 }
 function toggleMoodVoice() {
     moodVoiceOn = !moodVoiceOn;
     saveMoodVoice();
     renderMoodVoiceToggle();
-    showToast(moodVoiceOn ? "🎭 Nada ikut suasana hati aktif" : "🎭 Nada ikut suasana hati mati");
+    showToast(moodVoiceOn ? "Nada ikut suasana hati aktif" : "Nada ikut suasana hati mati");
 }
 /* v2.9.1: slider kecepatan suara di accordion "Suara & cadangan",
    tepat di bawah tombol Suara Rin. Dibangun dari JS supaya tidak
@@ -2318,7 +2368,7 @@ function renderVoiceSpeed() {
 function renderVoiceToggle() {
     let b = $("voiceToggle");
     if (!b) return;
-    b.textContent = voiceOn ? "Suara Rin: Aktif ✅" : "Suara Rin: Mati ⏸️";
+    b.textContent = voiceOn ? "Suara Rin: Aktif" : "Suara Rin: Mati";
     b.classList.toggle("on", voiceOn);
     renderVoiceSpeed();
     renderVoiceStability();
@@ -2329,7 +2379,7 @@ function toggleVoice() {
     saveVoice();
     if (!voiceOn) stopSpeaking();
     renderVoiceToggle();
-    showToast(voiceOn ? "🔊 Suara Rin aktif" : "🔇 Suara Rin mati");
+    showToast(voiceOn ? "Suara Rin aktif" : "Suara Rin mati");
 }
 function pickRinVoice() {
     if (typeof speechSynthesis === "undefined" || !speechSynthesis.getVoices) return null;
@@ -2502,7 +2552,7 @@ function markSpeakingButtons() {
     document.querySelectorAll(".speak-btn").forEach(function (b) {
         let on = speakingMsgId && b.dataset && b.dataset.msgId === speakingMsgId;
         b.classList.toggle("speaking", !!on);
-        b.textContent = on ? "⏹️" : "🔊";
+        b.innerHTML = icon(on ? "stop" : "speaker");
     });
     markVoicePlayers(); // v2.12: sinkronkan juga player pesan suara
 }
@@ -2603,7 +2653,7 @@ function buildVoicePlayer(text, msgId) {
     player.dataset.msgId = msgId || "";
     let playBtn = document.createElement("button");
     playBtn.className = "voice-play";
-    playBtn.textContent = "▶";
+    setVoicePlayIcon(playBtn, "play");
     playBtn.dataset.msgId = msgId || "";
     playBtn.onclick = function () { toggleVoiceBubble(msgId, text); };
     player.appendChild(playBtn);
@@ -2635,7 +2685,7 @@ function setVoiceLoading(msgId, on) {
     if (!p) return;
     p.classList.toggle("loading", !!on);
     let btn = p.querySelector(".voice-play");
-    if (btn) btn.textContent = on ? "…" : ((speakingMsgId === msgId) ? "⏸" : "▶");
+    if (btn) setVoicePlayIcon(btn, on ? "loading" : ((speakingMsgId === msgId) ? "pause" : "play"));
 }
 function refreshVoicePlayer(msgId) {
     let p = voicePlayerEl(msgId);
@@ -2657,7 +2707,7 @@ function markVoicePlayers() {
         p.classList.toggle("playing", playing);
         p.classList.remove("loading");
         let btn = p.querySelector(".voice-play");
-        if (btn) btn.textContent = playing ? "⏸" : "▶";
+        if (btn) setVoicePlayIcon(btn, playing ? "pause" : "play");
         let entry = id && voiceCache[id];
         let bars = p.querySelectorAll(".voice-bar");
         let dur = p.querySelector(".voice-dur");
@@ -2833,7 +2883,7 @@ function stopListening() {
 function updateMicButton() {
     let b = $("micBtn");
     if (!b) return;
-    b.textContent = listening ? "🔴" : "🎤";
+    b.innerHTML = icon("mic");
     b.classList.toggle("recording", listening);
 }
 

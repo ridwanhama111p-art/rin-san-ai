@@ -714,8 +714,6 @@ button:active {
 :root[data-theme="led"] .new-chat-btn,
 :root[data-theme="led"] .rin .message-bubble,
 :root[data-theme="led"] .user .message-bubble,
-:root[data-theme="led"] .avatar,
-:root[data-theme="led"] .header-avatar,
 :root[data-theme="led"] .theme-dot {
     --led-inner: var(--surface);
     border: 2px solid transparent;
@@ -728,6 +726,7 @@ button:active {
 :root[data-theme="led"] .attach-btn,
 :root[data-theme="led"] .mic-btn,
 :root[data-theme="led"] .menu-btn,
+:root[data-theme="led"] .settings-btn,
 :root[data-theme="led"] .acc-head,
 :root[data-theme="led"] .persona-chip,
 :root[data-theme="led"] .persona-btn,
@@ -752,6 +751,27 @@ button:active {
 /* v2.21: dot tema aktif tetap kelihatan (cincin luar, bukan border) */
 :root[data-theme="led"] .theme-dot.active {
     box-shadow: 0 0 0 2px var(--text);
+}
+/* v2.22: cincin LED avatar lewat ::before. Avatar saat runtime adalah
+   div.sprite (wajah dari background-image), jadi background shorthand
+   DILARANG di sini — cincin dibuat ::before di belakang div (z-index -1,
+   isolation agar tidak tembus ke belakang halaman), terlihat lewat
+   border transparan 2px; wajah sprite tetap utuh. */
+:root[data-theme="led"] .avatar,
+:root[data-theme="led"] .header-avatar {
+    position: relative;
+    isolation: isolate;
+    border: 2px solid transparent;
+}
+:root[data-theme="led"] .avatar::before,
+:root[data-theme="led"] .header-avatar::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: conic-gradient(from var(--led-angle), #f08ab0, #a78bfa, #5fa8e8, #f08ab0);
+    z-index: -1;
+    animation: led-rotate 4s linear infinite;
 }
 
 .theme-row {

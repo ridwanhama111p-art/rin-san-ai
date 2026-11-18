@@ -2922,7 +2922,7 @@ on("fileInput", "change", async function () {
    ================================================================
    Library (three.js + @pixiv/three-vrm) dimuat malas dari CDN hanya
    saat panggung pertama dibuka, jadi chat biasa tidak melambat.
-   Model: rin-3d.vrm (Scarlet III School Ver, rambut diwarnai ungu Rin).
+   Model: rin-3d.vrm (v2.16: 奈夜JK, diwarnai jadi Rin — rambut ungu #403040, mata crimson-pink, dasi merah, rompi + rok navy).
    Gerak: napas idle, kedip, ekspresi ikut mood, bibir ikut suara TTS.
    v2.10: gerak bebas — aksi idle acak (menoleh, melambai, dsb.).
    Render hanya jalan saat panggung terbuka (hemat baterai). */
@@ -3054,11 +3054,13 @@ function touchPartFromObject(obj) {
     return null;
 }
 // Cadangan kalau nama mesh tidak dikenali: dari tinggi titik kena.
-// Kepala 1,175; puncak rambut 1,38; pinggang 0,783.
+// v2.16: 奈夜JK — Kepala 1,224; puncak rambut 1,495; pinggang 0,778.
+// Batas kepala di antara mata (1,285) dan puncak wajah (1,417);
+// batas wajah 0,13 di bawah dagu (1,193), seperti sebelumnya.
 function touchPartFromY(y) {
     if (typeof y !== "number" || isNaN(y)) return null;
-    if (y >= 1.28) return "head";
-    if (y >= 1.02) return "face";
+    if (y >= 1.34) return "head";
+    if (y >= 1.06) return "face";
     if (y >= 0.60) return "body";
     if (y >= 0) return "legs";
     return null;
@@ -3091,21 +3093,17 @@ function s3say(text) {
 }
 /* v2.8.4: pipi merah — dua elips pink semi-transparan menempel di
    tulang kepala, jadi ikut gerak kepala. Posisi diukur dari geometri
-   wajah di file .vrm (analyze-blush.mjs), BUKAN tebakan:
-   tulang kepala di (0, 1.175, 0.014) model space, sumbu lokalnya
-   identitas; mesh wajah y 1.150..1.345 (dagu 1.150, mata 1.187),
-   permukaan pipi di (x ±0.04, y 1.17) ada di z -0.036..-0.055 model.
-   v2.8.2/v2.8.3 salah dua-duanya: y -0.045 dari kepala (= 1.130,
-   DI BAWAH dagu, di leher) dan z cuma +0.028 dari kepala (di DALAM
-   kepala) — makanya v2.8.2 tak terlihat sama sekali dan v2.8.3
-   muncul sebagai blob pink di leher/kerah (screenshot Ridwan).
-   Posisi benar (dunia pasca-rotateVRM0): x ±0.042, y kepala +0.025
-   (= 1.200, di tengah pipi — v2.8.7: turun 0.010 dari v2.8.6 karena
-   di screenshot Ridwan blush v2.8.6 kena mata bawah; mata di
-   y 1.235, mulut di 1.174, jadi 1.200 pas di tengah-tengah),
-   z kepala +0.085 (= +0.071 dunia, 0.008 di depan titik pipi paling
-   maju di pita y 1.20..1.22, z -0.063) — lalu diubah ke ruang lokal
-   kepala dengan worldToLocal. Orientasi lingkaran diset ke
+   wajah di file .vrm (analyze-blush.mjs), BUKAN tebakan.
+   v2.16: model baru 奈夜JK — tulang kepala di (0, 1.224, 0.024) model
+   space, sumbu lokalnya identitas; mesh wajah y 1.193..1.417
+   (dagu 1.193, mulut 1.218 dari morph A, mata 1.285 dari morph Blink),
+   permukaan pipi di (x ±0.031..0.035, y 1.224..1.264) ada di z -0.066.
+   Posisi benar (dunia pasca-rotateVRM0): x ±0.033, y kepala +0.025
+   (= 1.249, sedikit di bawah tengah mulut-mata 1.252 — aturan yang
+   sama seperti v2.8.7 di Scarlet: tengah pipi, di atas mulut, di
+   bawah mata), z kepala +0.098 (= +0.074 dunia, 0.008 di depan titik
+   pipi paling maju di pita y 1.224..1.264, z -0.066) — lalu diubah ke
+   ruang lokal kepala dengan worldToLocal. Orientasi lingkaran diset ke
    kebalikan kuaternion dunia kepala, jadi menghadap +Z dunia
    (ke kamera) apa pun orientasi lokal tulangnya. */
 function createBlush3D() {
@@ -3123,7 +3121,7 @@ function createBlush3D() {
             let geo = new S3.THREE.CircleGeometry(0.019, 24);
             let mat = new S3.THREE.MeshBasicMaterial({ color: 0xff8fab, transparent: true, opacity: 0, depthWrite: false });
             let m = new S3.THREE.Mesh(geo, mat);
-            let world = new S3.THREE.Vector3(hp.x + 0.042 * side, hp.y + 0.025, hp.z + 0.085);
+            let world = new S3.THREE.Vector3(hp.x + 0.033 * side, hp.y + 0.025, hp.z + 0.098); // v2.16: 奈夜JK
             m.position.copy(head.worldToLocal(world));
             m.quaternion.copy(q);
             m.scale.set(1.25, 0.65, 1);
@@ -3643,7 +3641,7 @@ async function ensureStage3D() {
         let head = vrm.humanoid.getNormalizedBoneNode("head");
         let hp = new THREE.Vector3();
         head.getWorldPosition(hp);
-        camera.position.set(0, hp.y, 1.35);
+        camera.position.set(0, hp.y, 1.45); // v2.16: 1.35 -> 1.45, ujung rambut panjang (1,495) kelewat batas atas frame lama (~1,47)
         camera.lookAt(0, hp.y - 0.065, 0);
         S3.vrm = vrm; S3.renderer = renderer; S3.scene = scene;
         S3.camera = camera; S3.THREE = THREE;

@@ -691,21 +691,32 @@ button:active {
 @keyframes led-rotate {
     to { --led-angle: 360deg; }
 }
+/* v2.29: kemunculan lampu — --led-on (0..1) jadi alpha semua lampu LED;
+   animasi led-appear menyalakan 0 -> 1 saat tema LED mulai berlaku. */
+@property --led-on {
+    syntax: "<number>";
+    initial-value: 1;
+    inherits: false;
+}
+@keyframes led-appear {
+    from { --led-on: 0; }
+    to { --led-on: 1; }
+}
 :root[data-theme="led"] .chat-container {
     border: 2px solid transparent;
     background:
         linear-gradient(var(--bg), var(--bg)) padding-box,
-        conic-gradient(from var(--led-angle), #f08ab0, #a78bfa, #5fa8e8, #f08ab0) border-box;
-    animation: led-rotate 4s linear infinite;
-    box-shadow: 0 0 18px rgba(240, 138, 176, 0.35);
+        conic-gradient(from var(--led-angle), rgb(240 138 176 / var(--led-on)), rgb(167 139 250 / var(--led-on)), rgb(95 168 232 / var(--led-on)), rgb(240 138 176 / var(--led-on))) border-box;
+    animation: led-rotate 4s linear infinite, led-appear 1.2s ease-out;
+    box-shadow: 0 0 18px rgb(240 138 176 / calc(var(--led-on) * 0.35));
 }
 :root[data-theme="led"] .sidebar {
     border: 2px solid transparent;
     background:
         linear-gradient(var(--surface), var(--surface)) padding-box,
-        conic-gradient(from var(--led-angle), #f08ab0, #a78bfa, #5fa8e8, #f08ab0) border-box;
-    animation: led-rotate 4s linear infinite;
-    box-shadow: 0 0 18px rgba(240, 138, 176, 0.35);
+        conic-gradient(from var(--led-angle), rgb(240 138 176 / var(--led-on)), rgb(167 139 250 / var(--led-on)), rgb(95 168 232 / var(--led-on)), rgb(240 138 176 / var(--led-on))) border-box;
+    animation: led-rotate 4s linear infinite, led-appear 1.2s ease-out;
+    box-shadow: 0 0 18px rgb(240 138 176 / calc(var(--led-on) * 0.35));
 }
 /* v2.21: lampu LED di semua elemen bergaris (hanya tema led) */
 :root[data-theme="led"] .input-area,
@@ -738,8 +749,8 @@ button:active {
     border: 2px solid transparent;
     background:
         linear-gradient(var(--led-inner), var(--led-inner)) padding-box,
-        conic-gradient(from var(--led-angle), #f08ab0, #a78bfa, #5fa8e8, #f08ab0) border-box;
-    animation: led-rotate 4s linear infinite;
+        conic-gradient(from var(--led-angle), rgb(240 138 176 / var(--led-on)), rgb(167 139 250 / var(--led-on)), rgb(95 168 232 / var(--led-on)), rgb(240 138 176 / var(--led-on))) border-box;
+    animation: led-rotate 4s linear infinite, led-appear 1.2s ease-out;
 }
 /* v2.21: warna dalam mengikuti warna asli tiap elemen */
 :root[data-theme="led"] .attach-btn,
@@ -765,7 +776,7 @@ button:active {
 /* v2.21: mic sedang merekam tetap berdenyut + LED */
 :root[data-theme="led"] .mic-btn.recording {
     --led-inner: #e5646e;
-    animation: led-rotate 4s linear infinite, micPulse 1s ease-in-out infinite;
+    animation: led-rotate 4s linear infinite, micPulse 1s ease-in-out infinite, led-appear 1.2s ease-out;
 }
 /* v2.21: dot tema aktif tetap kelihatan (cincin luar, bukan border) */
 :root[data-theme="led"] .theme-dot.active {
@@ -788,13 +799,13 @@ button:active {
     position: absolute;
     inset: -2px;
     border-radius: 50%;
-    background: conic-gradient(from var(--led-angle), #f08ab0, #a78bfa, #5fa8e8, #f08ab0);
+    background: conic-gradient(from var(--led-angle), rgb(240 138 176 / var(--led-on)), rgb(167 139 250 / var(--led-on)), rgb(95 168 232 / var(--led-on)), rgb(240 138 176 / var(--led-on)));
     padding: 2px;
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask-composite: exclude;
-    animation: led-rotate 4s linear infinite;
+    animation: led-rotate 4s linear infinite, led-appear 1.2s ease-out;
 }
 /* v2.24: cahaya lembut (glow) ala referensi — TAMBAHAN di atas border LED
    muter yang tetap jalan. Halo biru-ungu blur di garis pemisah bawah
@@ -805,8 +816,8 @@ button:active {
 :root[data-theme="led"] .user .message-bubble,
 :root[data-theme="led"] .attach-pop {
     box-shadow:
-        0 0 16px 2px rgba(95, 168, 232, 0.45),
-        0 0 32px 8px rgba(167, 139, 250, 0.28);
+        0 0 16px 2px rgb(95 168 232 / calc(var(--led-on) * 0.45)),
+        0 0 32px 8px rgb(167 139 250 / calc(var(--led-on) * 0.28));
 }
 /* v2.25: header diangkat di atas #messages — kalau tidak, background
    #messages yang opaque menutupi glow bawah header. */

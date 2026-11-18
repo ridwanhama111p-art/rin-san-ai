@@ -3681,8 +3681,8 @@ async function ensureStage3D() {
                 S3.renderer.setSize(c.clientWidth, c.clientHeight);
             });
         }
-        S3.loading = false;
         S3.ready = true;
+        s3loosenHairSprings(); // v2.17: rambut lebih lepas saat digeser
         s3status("");
         if (!blushOk) s3status("Blush gagal dibuat"); // v2.8.3: diagnosa di layar
         applyMood3D();
@@ -3693,6 +3693,24 @@ async function ensureStage3D() {
         s3status("Rin 3D tidak bisa dimuat di perangkat ini. Coba lagi nanti ya.");
         showToast("Hmph! Rin 3D gagal dimuat");
     }
+}
+// v2.17: longgarkan pegas rambut (spring bone) supaya rambut terurai saat
+// model digeser. Model Naiya punya 13 grup rambut J_Sec_Hair1_xx dengan
+// stiffness 0,4-1,0 dan dragForce 0,4 - terlalu kaku, ayunannya nyaris
+// tidak kelihatan. Rok + bust tidak disentuh. Dijaga try/catch supaya
+// bentuk library yang berubah tidak merusak panggung.
+function s3loosenHairSprings() {
+    try {
+        let mgr = S3.vrm && S3.vrm.springBoneManager;
+        if (!mgr || !mgr.joints) return;
+        mgr.joints.forEach(function (joint) {
+            if (!joint || !joint.bone || !joint.settings) return;
+            let name = joint.bone.name || "";
+            if (name.indexOf("J_Sec_Hair1") !== 0) return;
+            joint.settings.stiffness = joint.settings.stiffness * 0.55;
+            joint.settings.dragForce = joint.settings.dragForce * 0.5;
+        });
+    } catch (e) {}
 }
 function startStageLoop() {
     if (!S3.ready || !S3.open || S3.raf) return;
@@ -3779,7 +3797,10 @@ function startStageLoop() {
         } else {
             s3mouth("", 0);
         }
-        if (vrm.springBoneManager) vrm.springBoneManager.update(dt);
+        // v2.17: vrm.update() di three-vrm 3.3.4 sudah menjalankan
+        // springBoneManager.update() di dalamnya - baris ganda di sini
+        // membuat pegas dihitung 2x per frame, jadi rambut cepat sekali
+        // kembali diam dan terlihat kaku saat digeser.
         vrm.update(dt);
         S3.renderer.render(S3.scene, S3.camera);
         } catch (e) {

@@ -690,6 +690,69 @@ button:active {
     animation: led-rotate 4s linear infinite;
     box-shadow: 0 0 18px rgba(240, 138, 176, 0.35);
 }
+/* v2.21: lampu LED di semua elemen bergaris (hanya tema led) */
+:root[data-theme="led"] .input-area,
+:root[data-theme="led"] input,
+:root[data-theme="led"] .persona-input,
+:root[data-theme="led"] .settings-panel,
+:root[data-theme="led"] .chat-header,
+:root[data-theme="led"] .confirm-card,
+:root[data-theme="led"] .preview-bar,
+:root[data-theme="led"] .attach-btn,
+:root[data-theme="led"] .mic-btn,
+:root[data-theme="led"] .menu-btn,
+:root[data-theme="led"] .acc-head,
+:root[data-theme="led"] .persona-chip,
+:root[data-theme="led"] .persona-btn,
+:root[data-theme="led"] .scene-btn,
+:root[data-theme="led"] .memory-toggle,
+:root[data-theme="led"] .memory-item,
+:root[data-theme="led"] .confirm-no,
+:root[data-theme="led"] #sendBtn,
+:root[data-theme="led"] .confirm-yes,
+:root[data-theme="led"] .acc-save,
+:root[data-theme="led"] .new-chat-btn,
+:root[data-theme="led"] .rin .message-bubble,
+:root[data-theme="led"] .user .message-bubble,
+:root[data-theme="led"] .avatar,
+:root[data-theme="led"] .header-avatar,
+:root[data-theme="led"] .theme-dot {
+    --led-inner: var(--surface);
+    border: 2px solid transparent;
+    background:
+        linear-gradient(var(--led-inner), var(--led-inner)) padding-box,
+        conic-gradient(from var(--led-angle), #f08ab0, #a78bfa, #5fa8e8, #f08ab0) border-box;
+    animation: led-rotate 4s linear infinite;
+}
+/* v2.21: warna dalam mengikuti warna asli tiap elemen */
+:root[data-theme="led"] .attach-btn,
+:root[data-theme="led"] .mic-btn,
+:root[data-theme="led"] .menu-btn,
+:root[data-theme="led"] .acc-head,
+:root[data-theme="led"] .persona-chip,
+:root[data-theme="led"] .persona-btn,
+:root[data-theme="led"] .scene-btn,
+:root[data-theme="led"] .memory-toggle,
+:root[data-theme="led"] .memory-item,
+:root[data-theme="led"] .confirm-no,
+:root[data-theme="led"] .rin .message-bubble { --led-inner: var(--soft); }
+:root[data-theme="led"] #sendBtn,
+:root[data-theme="led"] .confirm-yes,
+:root[data-theme="led"] .acc-save,
+:root[data-theme="led"] .new-chat-btn,
+:root[data-theme="led"] .persona-chip.active,
+:root[data-theme="led"] .scene-btn.active,
+:root[data-theme="led"] .memory-toggle.on,
+:root[data-theme="led"] .user .message-bubble { --led-inner: var(--primary); }
+/* v2.21: mic sedang merekam tetap berdenyut + LED */
+:root[data-theme="led"] .mic-btn.recording {
+    --led-inner: #e5646e;
+    animation: led-rotate 4s linear infinite, micPulse 1s ease-in-out infinite;
+}
+/* v2.21: dot tema aktif tetap kelihatan (cincin luar, bukan border) */
+:root[data-theme="led"] .theme-dot.active {
+    box-shadow: 0 0 0 2px var(--text);
+}
 
 .theme-row {
     flex-wrap: wrap;

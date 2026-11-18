@@ -654,8 +654,8 @@ button:active {
 :root[data-theme="led"] {
     --bg: #0b0b12;
     --surface: #14141f;
-    --primary: #d9628f;
-    --primary-dark: #b84c78;
+    --primary: #c9c9d1;
+    --primary-dark: #a9a9b6;
     --soft: #1e1e2a;
     --soft-text: #f1d9e6;
     --accent: #f08ab0;
@@ -663,6 +663,23 @@ button:active {
     --border: #2b2b3d;
     --text: #f5f0f7;
     --overlay: rgba(0, 0, 0, 0.7);
+}
+
+/* v2.28: tombol + balon user di tema LED jadi abu-abu muda — teksnya
+   harus gelap, kalau tidak putih di atas abu-abu muda tidak terbaca.
+   Hanya elemen berlatar primary yang disebut; tombol ikon transparan
+   (mic/lampiran/menu/setting) tidak ikut supaya ikonnya tetap terang. */
+:root[data-theme="led"] .user .message-bubble,
+:root[data-theme="led"] #sendBtn,
+:root[data-theme="led"] .acc-save,
+:root[data-theme="led"] .new-chat-btn,
+:root[data-theme="led"] .confirm-yes,
+:root[data-theme="led"] .persona-chip.active,
+:root[data-theme="led"] .scene-btn.active,
+:root[data-theme="led"] .memory-toggle.on,
+:root[data-theme="led"] #voiceToggle.on,
+:root[data-theme="led"] .glass-title {
+    color: #14141f;
 }
 
 /* v2.20: lampu LED — border gradasi conic yang berputar (hanya tema led) */

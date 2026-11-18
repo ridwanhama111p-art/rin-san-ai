@@ -650,6 +650,46 @@ button:active {
     --text: #f5f0f7;
     --overlay: rgba(0, 0, 0, 0.7);
 }
+/* v2.20: tema LED (lampu muter di sekeliling kolom chat & sidebar) */
+:root[data-theme="led"] {
+    --bg: #0b0b12;
+    --surface: #14141f;
+    --primary: #d9628f;
+    --primary-dark: #b84c78;
+    --soft: #1e1e2a;
+    --soft-text: #f1d9e6;
+    --accent: #f08ab0;
+    --muted: #9b8aa8;
+    --border: #2b2b3d;
+    --text: #f5f0f7;
+    --overlay: rgba(0, 0, 0, 0.7);
+}
+
+/* v2.20: lampu LED — border gradasi conic yang berputar (hanya tema led) */
+@property --led-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+}
+@keyframes led-rotate {
+    to { --led-angle: 360deg; }
+}
+:root[data-theme="led"] .chat-container {
+    border: 2px solid transparent;
+    background:
+        linear-gradient(var(--bg), var(--bg)) padding-box,
+        conic-gradient(from var(--led-angle), #f08ab0, #a78bfa, #5fa8e8, #f08ab0) border-box;
+    animation: led-rotate 4s linear infinite;
+    box-shadow: 0 0 18px rgba(240, 138, 176, 0.35);
+}
+:root[data-theme="led"] .sidebar {
+    border: 2px solid transparent;
+    background:
+        linear-gradient(var(--surface), var(--surface)) padding-box,
+        conic-gradient(from var(--led-angle), #f08ab0, #a78bfa, #5fa8e8, #f08ab0) border-box;
+    animation: led-rotate 4s linear infinite;
+    box-shadow: 0 0 18px rgba(240, 138, 176, 0.35);
+}
 
 .theme-row {
     flex-wrap: wrap;

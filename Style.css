@@ -636,6 +636,20 @@ button:active {
     --text: #efe3d8;
     --overlay: rgba(0, 0, 0, 0.65);
 }
+/* v2.19: tema Hitam Pekat (hitam pekat/AMOLED, aksen pink Rin) */
+:root[data-theme="black"] {
+    --bg: #000000;
+    --surface: #121212;
+    --primary: #d9628f;
+    --primary-dark: #b84c78;
+    --soft: #1e1e1e;
+    --soft-text: #f1d9e6;
+    --accent: #f08ab0;
+    --muted: #9b8aa8;
+    --border: #2b2b2b;
+    --text: #f5f0f7;
+    --overlay: rgba(0, 0, 0, 0.7);
+}
 
 .theme-row {
     flex-wrap: wrap;

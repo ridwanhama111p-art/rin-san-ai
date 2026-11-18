@@ -2922,7 +2922,7 @@ on("fileInput", "change", async function () {
    ================================================================
    Library (three.js + @pixiv/three-vrm) dimuat malas dari CDN hanya
    saat panggung pertama dibuka, jadi chat biasa tidak melambat.
-   Model: rin-3d.vrm (v2.16: 奈夜JK, diwarnai jadi Rin — rambut ungu #403040, mata crimson-pink, dasi merah, rompi + rok navy).
+   Model: rin-3d.vrm (v2.18: Luna Luna, diwarnai jadi Rin — rambut ungu #403040, mata crimson-pink, kuping kucing ungu, dress maid).
    Gerak: napas idle, kedip, ekspresi ikut mood, bibir ikut suara TTS.
    v2.10: gerak bebas — aksi idle acak (menoleh, melambai, dsb.).
    Render hanya jalan saat panggung terbuka (hemat baterai). */
@@ -3054,14 +3054,14 @@ function touchPartFromObject(obj) {
     return null;
 }
 // Cadangan kalau nama mesh tidak dikenali: dari tinggi titik kena.
-// v2.16: 奈夜JK — Kepala 1,224; puncak rambut 1,495; pinggang 0,778.
-// Batas kepala di antara mata (1,285) dan puncak wajah (1,417);
-// batas wajah 0,13 di bawah dagu (1,193), seperti sebelumnya.
+// v2.18: Luna Luna — Kepala 1,417; puncak rambut 1,696; pinggang 0,939.
+// Batas kepala di antara mata (1,489) dan puncak wajah (1,617);
+// batas wajah 0,13 di bawah dagu (1,383), seperti sebelumnya.
 function touchPartFromY(y) {
     if (typeof y !== "number" || isNaN(y)) return null;
-    if (y >= 1.34) return "head";
-    if (y >= 1.06) return "face";
-    if (y >= 0.60) return "body";
+    if (y >= 1.53) return "head";
+    if (y >= 1.25) return "face";
+    if (y >= 0.76) return "body";
     if (y >= 0) return "legs";
     return null;
 }
@@ -3094,15 +3094,15 @@ function s3say(text) {
 /* v2.8.4: pipi merah — dua elips pink semi-transparan menempel di
    tulang kepala, jadi ikut gerak kepala. Posisi diukur dari geometri
    wajah di file .vrm (analyze-blush.mjs), BUKAN tebakan.
-   v2.16: model baru 奈夜JK — tulang kepala di (0, 1.224, 0.024) model
-   space, sumbu lokalnya identitas; mesh wajah y 1.193..1.417
-   (dagu 1.193, mulut 1.218 dari morph A, mata 1.285 dari morph Blink),
-   permukaan pipi di (x ±0.031..0.035, y 1.224..1.264) ada di z -0.066.
+   v2.18: model baru Luna Luna — tulang kepala di (0, 1.417, 0.025) model
+   space, sumbu lokalnya identitas; mesh wajah y 1.383..1.617
+   (dagu 1.383, mulut 1.413 dari morph A, mata 1.489 dari morph Blink),
+   permukaan pipi di (x ±0.021..0.05, y 1.418..1.474) ada di z -0.0725.
    Posisi benar (dunia pasca-rotateVRM0): x ±0.033, y kepala +0.025
-   (= 1.249, sedikit di bawah tengah mulut-mata 1.252 — aturan yang
+   (= 1.442, sedikit di bawah tengah mulut-mata 1.451 — aturan yang
    sama seperti v2.8.7 di Scarlet: tengah pipi, di atas mulut, di
-   bawah mata), z kepala +0.098 (= +0.074 dunia, 0.008 di depan titik
-   pipi paling maju di pita y 1.224..1.264, z -0.066) — lalu diubah ke
+   bawah mata), z kepala +0.105 (= +0.080 dunia, 0.008 di depan titik
+   pipi paling maju di pita y 1.418..1.474, z -0.0725) — lalu diubah ke
    ruang lokal kepala dengan worldToLocal. Orientasi lingkaran diset ke
    kebalikan kuaternion dunia kepala, jadi menghadap +Z dunia
    (ke kamera) apa pun orientasi lokal tulangnya. */
@@ -3121,7 +3121,7 @@ function createBlush3D() {
             let geo = new S3.THREE.CircleGeometry(0.019, 24);
             let mat = new S3.THREE.MeshBasicMaterial({ color: 0xff8fab, transparent: true, opacity: 0, depthWrite: false });
             let m = new S3.THREE.Mesh(geo, mat);
-            let world = new S3.THREE.Vector3(hp.x + 0.033 * side, hp.y + 0.025, hp.z + 0.098); // v2.16: 奈夜JK
+            let world = new S3.THREE.Vector3(hp.x + 0.033 * side, hp.y + 0.025, hp.z + 0.105); // v2.18: Luna Luna
             m.position.copy(head.worldToLocal(world));
             m.quaternion.copy(q);
             m.scale.set(1.25, 0.65, 1);
@@ -3641,7 +3641,7 @@ async function ensureStage3D() {
         let head = vrm.humanoid.getNormalizedBoneNode("head");
         let hp = new THREE.Vector3();
         head.getWorldPosition(hp);
-        camera.position.set(0, hp.y, 1.45); // v2.16: 1.35 -> 1.45, ujung rambut panjang (1,495) kelewat batas atas frame lama (~1,47)
+        camera.position.set(0, hp.y, 1.52); // v2.18: 1.45 -> 1.52, ujung rambut + kuping kucing (1,696) kelewat batas atas frame lama (~1,69)
         camera.lookAt(0, hp.y - 0.065, 0);
         S3.vrm = vrm; S3.renderer = renderer; S3.scene = scene;
         S3.camera = camera; S3.THREE = THREE;

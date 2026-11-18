@@ -789,6 +789,12 @@ button:active {
         0 0 16px 2px rgba(95, 168, 232, 0.45),
         0 0 32px 8px rgba(167, 139, 250, 0.28);
 }
+/* v2.25: header diangkat di atas #messages — kalau tidak, background
+   #messages yang opaque menutupi glow bawah header. */
+:root[data-theme="led"] .chat-header {
+    position: relative;
+    z-index: 1;
+}
 
 .theme-row {
     flex-wrap: wrap;

@@ -778,6 +778,17 @@ button:active {
     mask-composite: exclude;
     animation: led-rotate 4s linear infinite;
 }
+/* v2.24: cahaya lembut (glow) ala referensi — TAMBAHAN di atas border LED
+   muter yang tetap jalan. Halo biru-ungu blur di garis pemisah bawah
+   header dan atas kolom ketik, plus pinggiran balon chat Rin & user. */
+:root[data-theme="led"] .chat-header,
+:root[data-theme="led"] .input-area,
+:root[data-theme="led"] .rin .message-bubble,
+:root[data-theme="led"] .user .message-bubble {
+    box-shadow:
+        0 0 16px 2px rgba(95, 168, 232, 0.45),
+        0 0 32px 8px rgba(167, 139, 250, 0.28);
+}
 
 .theme-row {
     flex-wrap: wrap;
